@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/users/cosic/mpieck/Downloads/tool",
+  "command": "/usr/lib64/ccache/g++    -std=c++11 -O3 -g3 -gdwarf-2   -o CMakeFiles/uniformity.exe.dir/main.cpp.o -c /users/cosic/mpieck/Downloads/tool/main.cpp",
+  "file": "/users/cosic/mpieck/Downloads/tool/main.cpp"
+}
+]

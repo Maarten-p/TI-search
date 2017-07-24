@@ -1,0 +1,36 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/users/cosic/mpieck/Downloads/tool/BooleanFunction.h
+vector
+-
+bitset
+-
+cmath
+-
+ostream
+-
+
+/users/cosic/mpieck/Downloads/tool/main.cpp
+cinttypes
+-
+iostream
+-
+fstream
+-
+algorithm
+-
+future
+-
+map
+-
+tuple
+-
+BooleanFunction.h
+/users/cosic/mpieck/Downloads/tool/BooleanFunction.h
+

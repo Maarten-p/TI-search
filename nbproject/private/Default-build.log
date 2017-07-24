@@ -1,0 +1,4 @@
+Scanning dependencies of target uniformity.out
+[100%] Building CXX object CMakeFiles/uniformity.out.dir/main.cpp.o
+Linking CXX executable uniformity.out
+[100%] Built target uniformity.out
