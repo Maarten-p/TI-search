@@ -214,7 +214,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
             std::cout << i << ' ';
         std::cout << std::endl;
         if(!canAddIndices(functions, ind))
-           continue; 
+            continue; 
         // Remove the first index
         Indices ind_no_first = ind.without(0);
         // Remove the second index
@@ -273,28 +273,28 @@ std::vector<std::bitset<3>> get3Sharing(bool bit)
 {
     std::vector<std::bitset<3>> result;
     std::bitset<3> current;
-    for(bool b1 = false; !b1; b1 = true) {
+    for (bool b1 : { false, true }) {
         current[0] = b1;
-        for(bool b2 = false; !b2; b2 = true) {
+        for (bool b2 : { false, true }) {
             current[1] = b2;
-            current[2] = b1 ^ b2;
+            current[2] = b1 ^ b2 ^ bit;
             result.push_back(current);
         }
     }
+    return result;
 }
 
 std::vector<SharedInputBitArray> getSharingsForInput(const InputBitArray& input_bits)
 {
-    std::vector<SharedInputBitArray> result;
+    std::vector<SharedInputBitArray> result(4,0);
     for(std::size_t i = 0; i < input_bits.size(); ++i) {
         const std::size_t k = 3 * i;
-        for(const auto& bits : get3Sharing(input_bits[i])) {
-            for(SharedInputBitArray& r : result) {
-                r[k] = bits[0];
-                r[k + 1] = bits[1];
-                r[k + 2] = bits[2];
+        std::vector<std::bitset<3>> possible_sharings = get3Sharing(input_bits[i]);
+        for(std::size_t j = 0; j < possible_sharings.size(); ++j)  {
+            result[j][k] = possible_sharings[j][0];
+            result[j][k+1] = possible_sharings[j][1];
+            result[j][k+2] = possible_sharings[j][2];
             }
-        }
     }
     return result;
 }
@@ -303,11 +303,12 @@ bool checkUniformity(const std::vector<BlnFunction>& components,
     std::size_t nb_input_variables, std::size_t expected_count)
 {
     const std::size_t input_size = std::pow(2, nb_input_variables);
-    const std::size_t shared_input_size = std::pow(2, 3 * nb_input_variables);
+    const std::size_t shared_input_size = std::pow(2, NB_SHARES * nb_input_variables);
     for(std::size_t i = 0; i < input_size; ++i) {
         InputBitArray input(i); 
         std::vector<std::size_t> counts(shared_input_size, 0);
         for(auto& sharing : getSharingsForInput(input)) {
+            
             std::size_t sharingIndex = sharing.to_ulong();
             counts[sharingIndex] += 1; 
             if(counts[sharingIndex] > expected_count)
@@ -357,6 +358,7 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
                << std::endl;
         }
         ++nb_done;
+        std::cout << nb_done << std::endl;
     }
 
 }
@@ -468,7 +470,6 @@ std::vector<std::vector<BlnFunction>> readRealization(const std::string& filenam
               << std::endl;
     return result;
 }
-
 
 int main(int argc, char *argv[])
 {
