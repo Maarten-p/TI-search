@@ -8,17 +8,18 @@
 
 #include "BooleanFunction.h" 
 
-constexpr std::size_t MAX_THREADS = 4;
+constexpr std::size_t MAX_THREADS = 8;
 
 constexpr std::size_t INPUT_BITS = 4;
-constexpr std::size_t NB_SHARES = 3;
-constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS * NB_SHARES);
+constexpr std::size_t INPUT_SHARES = 3;
+constexpr std::size_t OUTPUT_SHARES = 3;
+constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS * INPUT_SHARES);
 
 typedef BooleanFunction<INPUT_SIZE> BlnFunction;
-typedef std::array<BlnFunction, NB_SHARES> CorrectionFunction;
+typedef std::array<BlnFunction, OUTPUT_SHARES> CorrectionFunction;
 typedef std::vector<CorrectionFunction> VecCorrectionFunction;
 typedef std::bitset<INPUT_BITS> InputBitArray;
-typedef std::bitset<NB_SHARES * INPUT_BITS> SharedInputBitArray;
+typedef std::bitset<INPUT_SHARES * INPUT_BITS> SharedInputBitArray;
 
 struct Indices {
     std::vector<std::size_t> indices;
@@ -56,7 +57,7 @@ bool operator<(const Indices& lhs, const Indices& rhs) {
  * @return true if every (share)th share of every input is zero, false otherwise
  */
 bool areSharesZero(const BlnFunction::BitArray& bits, std::size_t share) {
-    for(std::size_t i = share; i < bits.size(); i += NB_SHARES) {
+    for(std::size_t i = share; i < bits.size(); i += INPUT_SHARES) {
         if(bits[i]) 
             return false;
     }
@@ -303,12 +304,12 @@ bool checkUniformity(const std::vector<BlnFunction>& components,
     std::size_t nb_input_variables, std::size_t expected_count)
 {
     const std::size_t input_size = std::pow(2, nb_input_variables);
-    const std::size_t shared_input_size = std::pow(2, NB_SHARES * nb_input_variables);
+    const std::size_t shared_input_size = std::pow(2, INPUT_SHARES * nb_input_variables);
     for(std::size_t i = 0; i < input_size; ++i) {
         InputBitArray input(i); 
         std::vector<std::size_t> counts(shared_input_size, 0);
         for(auto& sharing : getSharingsForInput(input)) {
-            
+            //for(BlnFunction& component:components)
             std::size_t sharingIndex = sharing.to_ulong();
             counts[sharingIndex] += 1; 
             if(counts[sharingIndex] > expected_count)
@@ -458,7 +459,7 @@ std::vector<std::vector<BlnFunction>> readRealization(const std::string& filenam
                       << " expecting " << INPUT_SIZE << '.' << std::endl;
         shares.push_back(BlnFunction(BlnFunction::BitArray(line)));
         ++nb_so_far;
-        if(nb_so_far == NB_SHARES) {
+        if(nb_so_far == OUTPUT_SHARES) {
             result.push_back(shares);
             shares.clear();
             nb_so_far = 0;
@@ -470,6 +471,10 @@ std::vector<std::vector<BlnFunction>> readRealization(const std::string& filenam
               << std::endl;
     return result;
 }
+
+//createTruthTable() {
+    
+//%}
 
 int main(int argc, char *argv[])
 {
