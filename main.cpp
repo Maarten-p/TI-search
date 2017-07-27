@@ -270,6 +270,21 @@ std::size_t countCorrectionFunctions(
     return total_count;
 }
 
+template <int n>
+std::vector<std::bitset<n>> getNSharing(bool bit) {
+    std::vector<std::bitset<n>> result;
+    for (int i=0; i<pow(2,n);++i) {
+        std::bitset<n> input(i);
+        bool checksum = false;
+        for (bool current_bit : input) {
+            checksum ^= current_bit;
+        }
+        if (bit==checksum) {
+            result.push_back(input);
+        }
+    }
+}
+
 std::vector<std::bitset<3>> get3Sharing(bool bit)
 {
     std::vector<std::bitset<3>> result;
