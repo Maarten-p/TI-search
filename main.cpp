@@ -13,6 +13,7 @@ constexpr std::size_t MAX_THREADS = 8;
 constexpr std::size_t INPUT_BITS = 4;
 constexpr std::size_t INPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_SHARES = 3;
+constexpr std::size_t OUTPUT_BITS = 2;
 constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS * INPUT_SHARES);
 
 typedef BooleanFunction<INPUT_SIZE> BlnFunction;
@@ -459,6 +460,57 @@ void makeUniform(
     std::cout << "Process stopped at level " << level << '.' << std::endl;
 }
 
+//std::vector<std::vector<BlnFunction>> readRealization(const std::string& filename)
+//{
+//    std::vector<std::vector<BlnFunction>> result;
+//
+//    std::ifstream ifs(filename);
+//
+//    std::string line;
+//    std::vector<BlnFunction> shares;
+//    std::size_t nb_so_far = 0;
+//    while(std::getline(ifs, line)) {
+//        if(line.size() != INPUT_SIZE)
+//            std::cout << "Warning: incorrect input size given, got " << line.size()
+//                      << " expecting " << INPUT_SIZE << '.' << std::endl;
+//        shares.push_back(BlnFunction(BlnFunction::BitArray(line)));
+//        ++nb_so_far;
+//        if(nb_so_far == OUTPUT_SHARES) {
+//            result.push_back(shares);
+//            shares.clear();
+//            nb_so_far = 0;
+//        }
+//    }
+//    if(nb_so_far)
+//        std::cout << "Warning: missing shares for last component." << std::endl;
+//    std::cout << "Read realization with " << result.size() << " components."
+//              << std::endl;
+//    return result;
+//}
+
+std::array<std::bitset<INPUT_SIZE>, OUTPUT_BITS*OUTPUT_SHARES> createTruthTable(std::array<std::array<std::bitset<INPUT_SHARES*INPUT_BITS>, INPUT_SHARES*INPUT_BITS>, OUTPUT_SHARES*OUTPUT_BITS> functions) {
+    std::array<std::bitset<INPUT_SIZE>, OUTPUT_BITS*OUTPUT_SHARES> truthTables;
+    for (std::size_t i = 0;i<functions.size();i++) {
+        std::bitset<INPUT_SIZE> truthTable;
+        for (std::size_t j = 0;j<INPUT_SIZE;i++) {
+            std::bitset<INPUT_SHARES*INPUT_BITS> bits(j);
+            bool result = 0;
+            std::bitset<INPUT_SHARES*INPUT_BITS> im_result;
+            for (std::size_t k = 0; k<INPUT_SHARES*INPUT_BITS;k++) {
+                im_result[k] = 0;
+                for (std::size_t l = 0; l<INPUT_SHARES*INPUT_BITS;l++) {
+                    im_result[k] = im_result[k] ^ (functions[i][k][l] ^ bits[l]);
+                }
+            }
+            for (std::size_t k = 0; k<INPUT_SHARES*INPUT_BITS;k++) {
+                result ^= bits[k] ^ im_result[k];
+            }
+            truthTable[j] = result;
+        }
+        truthTables[i] = truthTable;
+    }
+}
+
 std::vector<std::vector<BlnFunction>> readRealization(const std::string& filename)
 {
     std::vector<std::vector<BlnFunction>> result;
@@ -466,33 +518,46 @@ std::vector<std::vector<BlnFunction>> readRealization(const std::string& filenam
     std::ifstream ifs(filename);
 
     std::string line;
-    std::vector<BlnFunction> shares;
+    std::array<std::array<std::bitset<INPUT_SHARES*INPUT_BITS>, INPUT_SHARES*INPUT_BITS>, OUTPUT_SHARES*OUTPUT_BITS> functions;
     std::size_t nb_so_far = 0;
+    std::size_t i = 0;
     while(std::getline(ifs, line)) {
-        if(line.size() != INPUT_SIZE)
+        std::array<std::bitset<INPUT_SHARES*INPUT_BITS>, INPUT_SHARES*INPUT_BITS> function;
+        if(line.size() != INPUT_SHARES*INPUT_BITS)
             std::cout << "Warning: incorrect input size given, got " << line.size()
-                      << " expecting " << INPUT_SIZE << '.' << std::endl;
-        shares.push_back(BlnFunction(BlnFunction::BitArray(line)));
-        ++nb_so_far;
-        if(nb_so_far == OUTPUT_SHARES) {
-            result.push_back(shares);
-            shares.clear();
+                      << " expecting " << INPUT_SHARES*INPUT_BITS << '.' << std::endl;
+        function[nb_so_far] = std::bitset<INPUT_SHARES*INPUT_BITS>(line);
+        nb_so_far++;
+        if(nb_so_far == INPUT_SHARES*INPUT_BITS) {
+            functions[i] = function;
+            std::fill_n(function, INPUT_SHARES*INPUT_BITS, 0);
             nb_so_far = 0;
+            i += 1;
         }
     }
     if(nb_so_far)
         std::cout << "Warning: missing shares for last component." << std::endl;
     std::cout << "Read realization with " << result.size() << " components."
               << std::endl;
+    result = createTruthTable(functions);
     return result;
 }
 
-//createTruthTable() {
-    
-//%}
+bool getANF(const int f[N], int p[N]){
+    int i, j;
+    for (i = 0; i < N; ++i) p[i] = f[i];
+
+    for (i = 1; i < N; i <<= 1){
+        for (j = i; j < N; j = (j + 1) | i){
+            p[j] ^= p[j ^ i];
+        }
+    }
+    return true;
+}
 
 int main(int argc, char *argv[])
 {
+    
     if(argc < 4) {
         std::cerr << "Usage: <number of inputs> <output directory> <filename>."
                   << std::endl;
