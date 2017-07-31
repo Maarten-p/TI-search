@@ -10,10 +10,10 @@
 
 constexpr std::size_t MAX_THREADS = 8;
 
-constexpr std::size_t INPUT_BITS = 4;
+constexpr std::size_t INPUT_BITS = 3;
 constexpr std::size_t INPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_SHARES = 3;
-constexpr std::size_t OUTPUT_BITS = 2;
+constexpr std::size_t OUTPUT_BITS = 1;
 constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS * INPUT_SHARES);
 
 typedef BooleanFunction<INPUT_SIZE> BlnFunction;
@@ -246,18 +246,26 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
 void writeFunctions(const std::string& directory, const std::string& file, 
     const std::map<Indices, std::vector<VecCorrectionFunction>>& functions) {
 
+    std::cout << "test1"<< '\n';
     std::ofstream ofs(directory + '/' + file);
     for(auto& pair : functions) {
+        std::cout << 1 << '\n';
         ofs << 1 << '\n';
         for(const VecCorrectionFunction& vf : pair.second) {
             for(const CorrectionFunction& f : vf) {
-                for(const BlnFunction& share : f)
+                for(const BlnFunction& share : f) {
+                    std::cout << share << '\n';
                     ofs << '\t' << share << '\n';
+                }
+                //std::cout << "\n\n";
                 ofs << "\n\n";
             }
+            //std::cout << "\n------------\n";
             ofs << "\n------------\n";
         }
+        std::cout << "test" << pair.second.size() << '\n';
     }
+    std::cout << std::endl;
     ofs << std::endl;
 }
 
@@ -301,35 +309,72 @@ std::vector<std::bitset<3>> get3Sharing(bool bit)
     return result;
 }
 
-std::vector<SharedInputBitArray> getSharingsForInput(const InputBitArray& input_bits)
-{
-    std::vector<SharedInputBitArray> result(4,0);
-    for(std::size_t i = 0; i < input_bits.size(); ++i) {
-        const std::size_t k = 3 * i;
-        std::vector<std::bitset<3>> possible_sharings = get3Sharing(input_bits[i]);
-        for(std::size_t j = 0; j < possible_sharings.size(); ++j)  {
-            result[j][k] = possible_sharings[j][0];
-            result[j][k+1] = possible_sharings[j][1];
-            result[j][k+2] = possible_sharings[j][2];
-            }
+//template <int shares, int input>
+//std::vector<std::bitset<shares*(input+1)> getCombinations(std::vector<std::bitset<shares*input>> oldSharings, std::vector<std::bitset<shares> newSharings) {
+//    std::vector<std::bitset<shares*(input+1)> output;
+//    for (std::bitset<shares*input> combination:oldSharings) {
+//        for (std::bitset<shares> newcombination:newSharings) {
+//            output.push_back(bitset<16> result(combination.to_ulong() * 0x100 + newcombination.to_ulong());)
+//        }
+//    }
+//}
+//std::vector<SharedInputBitArray> getSharingsForInput(const InputBitArray& input_bits)
+//{
+//    std::vector<SharedInputBitArray> result(4,0);
+//    for(std::size_t i = 0; i < input_bits.size(); ++i) {
+//        for (sharedArray : result) {
+//            
+//        }
+//        input_bits.size()/ (2*(i+1))
+//        const std::size_t k = INPUT_SHARES * i;
+//        std::vector<std::bitset<INPUT_SHARES>> possible_sharings = getNSharing<INPUT_SHARES>(input_bits[i]);
+//        for(std::size_t j = 0; j < possible_sharings.size(); ++j)  {
+//            result[j][k] = possible_sharings[j][0];
+//            result[j][k+1] = possible_sharings[j][1];
+//            result[j][k+2] = possible_sharings[j][2];
+//            }
+//    }
+//    return result;
+//}
+
+bool isCorrectSharing(const InputBitArray input, const SharedInputBitArray sharedInput) {
+    for (std::size_t i = 0; i<INPUT_BITS;i++) {
+        bool temp = 0;
+        for (std::size_t j = 0; j<INPUT_SHARES;j++) {
+            temp = temp ^ sharedInput[i*INPUT_SHARES+j];
+        }
+        if (temp != input[i]) {
+            return false;
+        }
     }
-    return result;
+    return true;
+    
 }
 
-bool checkUniformity(const std::vector<BlnFunction>& components,
+bool checkUniformity(const std::vector<std::vector<BlnFunction>> components,
     std::size_t nb_input_variables, std::size_t expected_count)
 {
     const std::size_t input_size = std::pow(2, nb_input_variables);
     const std::size_t shared_input_size = std::pow(2, INPUT_SHARES * nb_input_variables);
+    std::vector<std::vector<std::size_t>> counts(INPUT_BITS, std::vector<std::size_t>(OUTPUT_SHARES*OUTPUT_BITS,0));
     for(std::size_t i = 0; i < input_size; ++i) {
         InputBitArray input(i); 
-        std::vector<std::size_t> counts(shared_input_size, 0);
-        for(auto& sharing : getSharingsForInput(input)) {
-            //for(BlnFunction& component:components)
-            std::size_t sharingIndex = sharing.to_ulong();
-            counts[sharingIndex] += 1; 
-            if(counts[sharingIndex] > expected_count)
-                return false;
+        for(std::size_t j = 0; j < shared_input_size; ++j) {
+            SharedInputBitArray shared_input(j);
+            if (isCorrectSharing(input,shared_input)) {
+                std::bitset<OUTPUT_BITS*OUTPUT_SHARES> outputs;
+                for(std::size_t k = 0; k < components.size(); ++k) {
+                    bool output = 0;
+                    for (BlnFunction sharing : components[k]) {
+                        output = output ^ sharing[j];
+                    }
+                    outputs[k] = output;
+                    
+                }
+                counts[j][outputs.to_ulong()] += 1;
+                if(counts[j][outputs.to_ulong()] > expected_count)
+                   return false;
+            }
         }
     }
     return true;
@@ -432,7 +477,6 @@ void makeUniform(
     std::size_t nb_input_variables) {
 
     int level = 2;
-    writeFunctions(directory, "level1.out", functions);
 
     while(level <= realization.size() && !functions.empty()) {
         std::cout << "Combining " << countCorrectionFunctions(functions)
@@ -456,7 +500,9 @@ void makeUniform(
         std::cout << "Found " << countCorrectionFunctions(candidates)
                   << " correction functions." << std::endl;
     }
-
+    
+    std::cout << functions.size() << std::endl;
+    writeFunctions("test", "end.out", functions);
     std::cout << "Process stopped at level " << level << '.' << std::endl;
 }
 
@@ -488,11 +534,13 @@ void makeUniform(
 //    return result;
 //}
 
-std::array<std::bitset<INPUT_SIZE>, OUTPUT_BITS*OUTPUT_SHARES> createTruthTable(std::array<std::array<std::bitset<INPUT_SHARES*INPUT_BITS>, INPUT_SHARES*INPUT_BITS>, OUTPUT_SHARES*OUTPUT_BITS> functions) {
-    std::array<std::bitset<INPUT_SIZE>, OUTPUT_BITS*OUTPUT_SHARES> truthTables;
+std::vector<std::vector<BlnFunction>> createTruthTable(std::array<std::array<std::bitset<INPUT_SHARES*INPUT_BITS>, INPUT_SHARES*INPUT_BITS>, OUTPUT_SHARES*OUTPUT_BITS> functions) {
+    std::vector<std::vector<BlnFunction>> truthTables;
+    std::vector<BlnFunction> tempTable;
     for (std::size_t i = 0;i<functions.size();i++) {
         std::bitset<INPUT_SIZE> truthTable;
-        for (std::size_t j = 0;j<INPUT_SIZE;i++) {
+        for (std::size_t j = 0;j<INPUT_SIZE;j++) {
+            std::cout << j << std::endl;
             std::bitset<INPUT_SHARES*INPUT_BITS> bits(j);
             bool result = 0;
             std::bitset<INPUT_SHARES*INPUT_BITS> im_result;
@@ -507,8 +555,14 @@ std::array<std::bitset<INPUT_SIZE>, OUTPUT_BITS*OUTPUT_SHARES> createTruthTable(
             }
             truthTable[j] = result;
         }
-        truthTables[i] = truthTable;
+        std::cout << i << std::endl;
+        tempTable.push_back(BlnFunction(truthTable));
+        if ((i+1)%INPUT_SHARES == 0) {
+            truthTables.push_back(tempTable);
+            tempTable.clear();
+        }
     }
+    return truthTables;
 }
 
 std::vector<std::vector<BlnFunction>> readRealization(const std::string& filename)
@@ -530,30 +584,30 @@ std::vector<std::vector<BlnFunction>> readRealization(const std::string& filenam
         nb_so_far++;
         if(nb_so_far == INPUT_SHARES*INPUT_BITS) {
             functions[i] = function;
-            std::fill_n(function, INPUT_SHARES*INPUT_BITS, 0);
+            std::fill_n(function.begin(), function.size(), 0);
             nb_so_far = 0;
             i += 1;
         }
     }
     if(nb_so_far)
         std::cout << "Warning: missing shares for last component." << std::endl;
+    result = createTruthTable(functions);
     std::cout << "Read realization with " << result.size() << " components."
               << std::endl;
-    result = createTruthTable(functions);
     return result;
 }
 
-bool getANF(const int f[N], int p[N]){
-    int i, j;
-    for (i = 0; i < N; ++i) p[i] = f[i];
-
-    for (i = 1; i < N; i <<= 1){
-        for (j = i; j < N; j = (j + 1) | i){
-            p[j] ^= p[j ^ i];
-        }
-    }
-    return true;
-}
+//bool getANF(const int f[N], int p[N]){
+//    int i, j;
+//    for (i = 0; i < N; ++i) p[i] = f[i];
+//
+//    for (i = 1; i < N; i <<= 1){
+//        for (j = i; j < N; j = (j + 1) | i){
+//            p[j] ^= p[j ^ i];
+//        }
+//    }
+//    return true;
+//}
 
 int main(int argc, char *argv[])
 {
