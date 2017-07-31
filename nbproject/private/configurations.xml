@@ -24,6 +24,7 @@
       </df>
       <in>BooleanFunction.h</in>
       <in>main.cpp</in>
+      <in>quadratic.cpp</in>
     </df>
   </logicalFolder>
   <projectmakefile>Makefile</projectmakefile>
@@ -69,8 +70,9 @@
           <runcommandpicklistitem>"${OUTPUT_PATH} 8 ${OUTPUT_PATH} gf4.in"</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" 8 ${OUTPUT_PATH} gf4.in</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" 4 ${OUTPUT_PATH} gf4.in</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" 3 ${OUTPUT_PATH} new_format.in</runcommandpicklistitem>
         </runcommandpicklist>
-        <runcommand>"${OUTPUT_PATH}" 4 ${OUTPUT_PATH} gf4.in</runcommand>
+        <runcommand>"${OUTPUT_PATH}" 3 ${OUTPUT_PATH} new_format.in</runcommand>
         <arguments>8 ${OUTPUT_PATH} gf4.in</arguments>
         <rundir>.</rundir>
         <buildfirst>false</buildfirst>
