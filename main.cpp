@@ -10,10 +10,10 @@
 
 constexpr std::size_t MAX_THREADS = 8;
 
-constexpr std::size_t INPUT_BITS = 3;
+constexpr std::size_t INPUT_BITS = 4;
 constexpr std::size_t INPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_SHARES = 3;
-constexpr std::size_t OUTPUT_BITS = 1;
+constexpr std::size_t OUTPUT_BITS = 4;
 constexpr std::size_t INPUT_SHARES_BITS = INPUT_BITS * INPUT_SHARES;
 constexpr std::size_t OUTPUT_SHARES_BITS = OUTPUT_BITS * OUTPUT_SHARES;
 constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS * INPUT_SHARES);
@@ -440,7 +440,8 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
                << std::endl;
         }
         ++nb_done;
-        std::cout << nb_done << std::endl;
+        if (nb_done % 10000 == 0)
+            std::cout << nb_done << std::endl;
     }
     return good_correction_functions;
 
@@ -456,7 +457,13 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
     const std::map<Indices, std::vector<VecCorrectionFunction>>& functions) {
 
     std::map<Indices, std::vector<VecCorrectionFunction>> filtered_functions;
-
+    const std::size_t expected_count = std::pow(
+        2, 2 * nb_input_variables - 2 * realization.size()
+    );
+    if (checkUniformity(realization,nb_input_variables,expected_count)) {
+        std::cout << "already uniform" << std::endl;
+    }
+        
     // Produce batches for each set of indices
     for(const auto& pair : functions) {
         std::size_t batch_nb = 0;
@@ -567,7 +574,6 @@ std::vector<std::vector<BlnFunction>> createTruthTable(std::vector<std::vector<s
     for (std::size_t i = 0;i<functions.size();i++) {
         std::bitset<INPUT_SIZE> truthTable;
         for (std::size_t j = 0;j<INPUT_SIZE;j++) {
-            std::cout << j << std::endl;
             std::bitset<INPUT_SHARES*INPUT_BITS> bits(j);
             bool result = 0;
             std::bitset<INPUT_SHARES*INPUT_BITS> im_result;
@@ -585,7 +591,6 @@ std::vector<std::vector<BlnFunction>> createTruthTable(std::vector<std::vector<s
             }
             truthTable[j] = result ^ constant_bits[i];
         }
-        std::cout << i << std::endl;
         tempTable.push_back(BlnFunction(truthTable));
         if ((i+1)%INPUT_SHARES == 0) {
             truthTables.push_back(tempTable);
@@ -606,7 +611,7 @@ std::vector<std::vector<BlnFunction>> readRealization(const std::string& filenam
     std::size_t nb_so_far = 0;
     std::getline(ifs, line);
     std::bitset<OUTPUT_SHARES_BITS> constant_bits(line);
-        std::vector<std::bitset<INPUT_SHARES_BITS>> linear_bits;
+    std::vector<std::bitset<INPUT_SHARES_BITS>> linear_bits;
     for (std::size_t j=0;j<OUTPUT_SHARES_BITS;j++) {
         std::getline(ifs,line);
         linear_bits.push_back(std::bitset<INPUT_SHARES_BITS>(line));

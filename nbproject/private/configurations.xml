@@ -13,8 +13,6 @@
         </df>
         <df name="CMakeTmp">
         </df>
-        <df name="Progress">
-        </df>
         <df name="uniformity.exe.dir">
         </df>
         <df name="uniformity.out.dir">
@@ -71,8 +69,10 @@
           <runcommandpicklistitem>"${OUTPUT_PATH}" 8 ${OUTPUT_PATH} gf4.in</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" 4 ${OUTPUT_PATH} gf4.in</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" 3 ${OUTPUT_PATH} new_format.in</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" 3 ${OUTPUT_PATH} new_format_perm.in</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" 4 ${OUTPUT_PATH} new_format_perm.in</runcommandpicklistitem>
         </runcommandpicklist>
-        <runcommand>"${OUTPUT_PATH}" 3 ${OUTPUT_PATH} new_format.in</runcommand>
+        <runcommand>"${OUTPUT_PATH}" 4 ${OUTPUT_PATH} new_format_perm.in</runcommand>
         <arguments>8 ${OUTPUT_PATH} gf4.in</arguments>
         <rundir>.</rundir>
         <buildfirst>false</buildfirst>
