@@ -14,10 +14,12 @@ constexpr std::size_t INPUT_BITS = 3;
 constexpr std::size_t INPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_BITS = 1;
+constexpr std::size_t INPUT_SHARES_BITS = INPUT_BITS * INPUT_SHARES;
+constexpr std::size_t OUTPUT_SHARES_BITS = OUTPUT_BITS * OUTPUT_SHARES;
 constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS * INPUT_SHARES);
 
 typedef BooleanFunction<INPUT_SIZE> BlnFunction;
-typedef std::array<BlnFunction, OUTPUT_SHARES> CorrectionFunction;
+typedef std::array<std::bitset<INPUT_SHARES_BITS>, OUTPUT_SHARES> CorrectionFunction;
 typedef std::vector<CorrectionFunction> VecCorrectionFunction;
 typedef std::bitset<INPUT_BITS> InputBitArray;
 typedef std::bitset<INPUT_SHARES * INPUT_BITS> SharedInputBitArray;
@@ -57,7 +59,7 @@ bool operator<(const Indices& lhs, const Indices& rhs) {
 /**
  * @return true if every (share)th share of every input is zero, false otherwise
  */
-bool areSharesZero(const BlnFunction::BitArray& bits, std::size_t share) {
+bool areSharesZero(const std::bitset<INPUT_SHARES_BITS>& bits, std::size_t share) {
     for(std::size_t i = share; i < bits.size(); i += INPUT_SHARES) {
         if(bits[i]) 
             return false;
@@ -92,24 +94,24 @@ std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
     std::vector<VecCorrectionFunction> solutions;
 
     for(std::size_t i = 0; i < spectrum1.size(); ++i) {
-        BlnFunction::BitArray bits_i(i);
+        std::bitset<INPUT_SHARES_BITS> bits_i(i);
         if(!areSharesZero(bits_i, 0) || spectrum1[i] != 0)
             continue;
 
         for(std::size_t j = 0; j < spectrum2.size(); ++j) {
-            BlnFunction::BitArray bits_j(j);
+            std::bitset<INPUT_SHARES_BITS> bits_j(j);
             if(!areSharesZero(bits_j, 1) || spectrum2[j] != 0)
                 continue;
 
-            BlnFunction::BitArray bits_l = bits_i ^ bits_j;
+            std::bitset<INPUT_SHARES_BITS> bits_l = bits_i ^ bits_j;
             std::size_t l = bits_l.to_ulong();
             if(!areSharesZero(bits_l, 2) || spectrum3[l] != 0)
                 continue;
 
             CorrectionFunction cf {
-                BlnFunction(bits_i),
-                BlnFunction(bits_j),
-                BlnFunction(bits_l)
+                bits_i,
+                bits_j,
+                bits_l
             };
 
             // Found a solution, add to list
@@ -246,18 +248,18 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
 void writeFunctions(const std::string& directory, const std::string& file, 
     const std::map<Indices, std::vector<VecCorrectionFunction>>& functions) {
 
-    std::cout << "test1"<< '\n';
+    std::cout << "test1111111111111"<< '\n';
     std::ofstream ofs(directory + '/' + file);
     for(auto& pair : functions) {
         std::cout << 1 << '\n';
         ofs << 1 << '\n';
         for(const VecCorrectionFunction& vf : pair.second) {
             for(const CorrectionFunction& f : vf) {
-                for(const BlnFunction& share : f) {
+                for(const std::bitset<INPUT_SHARES_BITS>& share : f) {
                     std::cout << share << '\n';
                     ofs << '\t' << share << '\n';
                 }
-                //std::cout << "\n\n";
+                std::cout << "\n\n";
                 ofs << "\n\n";
             }
             //std::cout << "\n------------\n";
@@ -371,13 +373,27 @@ bool checkUniformity(const std::vector<std::vector<BlnFunction>> components,
                     outputs[k] = output;
                     
                 }
-                counts[j][outputs.to_ulong()] += 1;
-                if(counts[j][outputs.to_ulong()] > expected_count)
+                counts[i][outputs.to_ulong()] += 1;
+                if(counts[i][outputs.to_ulong()] > expected_count)
                    return false;
             }
         }
     }
     return true;
+}
+
+BlnFunction truthTable(const std::bitset<INPUT_SHARES_BITS> correction_term) {
+    BlnFunction::BitArray truthTable;
+    for (std::size_t j = 0;j<INPUT_SIZE;j++) {
+        std::bitset<INPUT_SHARES_BITS> bits(j);
+        bool result = 0;
+        std::bitset<INPUT_SHARES_BITS> im_result = bits & correction_term;
+        for (std::size_t k = 0; k<INPUT_SHARES_BITS;k++) {
+            result ^= im_result[k];
+        }
+        truthTable[j] = result;
+    }
+    return BlnFunction(truthTable);
 }
 
 typedef std::vector<VecCorrectionFunction>::const_iterator FunctionIter;
@@ -405,11 +421,15 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
     for(FunctionIter it = begin; it != end; ++it) {
         // Construct the vectorial boolean function, i.e. add vf to realization
         // The result is a flattened vector of vectorial boolean functions
-        std::vector<BlnFunction> corrected_realization;
+        std::vector<std::vector<BlnFunction>> corrected_realization;
         std::size_t i_corrected = 0;
         for(std::size_t i : indices.indices) {
-            for(std::size_t s = 0; s < realization.size(); ++s)
-                corrected_realization.push_back(realization[i][s] + (*it)[i_corrected][s]);
+            std::vector<BlnFunction> temp_realization;
+            for(std::size_t s = 0; s < realization[i].size(); ++s) {
+                BlnFunction correctionTruthTable = truthTable((*it)[i_corrected][s]);
+                temp_realization.push_back(realization[i][s] + correctionTruthTable);
+            }
+            corrected_realization.push_back(temp_realization);
             ++i_corrected;
         }
 
@@ -422,8 +442,12 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
         ++nb_done;
         std::cout << nb_done << std::endl;
     }
+    return good_correction_functions;
 
 }
+
+
+
 
 std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
     const std::string& directory,
@@ -459,11 +483,13 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
         int i = 0;
         for(auto& future : results) {
             i +=1;
-            std::cout << i << std::endl;
+            std::cout << i << "test" << std::endl;
             std::vector<VecCorrectionFunction> corrections = future.get();
             if(!corrections.empty() && !filtered_functions.count(pair.first))
                 filtered_functions[pair.first] = std::vector<VecCorrectionFunction>();
             std::vector<VecCorrectionFunction>& results_so_far = filtered_functions[pair.first];
+            std::cout << results_so_far.size() << std::endl;
+            std::cout << corrections.size() << std::endl;
             results_so_far.insert(results_so_far.begin(), corrections.begin(), corrections.end());
         }
     }
@@ -499,6 +525,7 @@ void makeUniform(
 
         std::cout << "Found " << countCorrectionFunctions(candidates)
                   << " correction functions." << std::endl;
+        level++;
     }
     
     std::cout << functions.size() << std::endl;
@@ -534,7 +561,7 @@ void makeUniform(
 //    return result;
 //}
 
-std::vector<std::vector<BlnFunction>> createTruthTable(std::array<std::array<std::bitset<INPUT_SHARES*INPUT_BITS>, INPUT_SHARES*INPUT_BITS>, OUTPUT_SHARES*OUTPUT_BITS> functions) {
+std::vector<std::vector<BlnFunction>> createTruthTable(std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>> functions, std::bitset<OUTPUT_SHARES_BITS> constant_bits, std::vector<std::bitset<INPUT_SHARES_BITS>> linear_bits) {
     std::vector<std::vector<BlnFunction>> truthTables;
     std::vector<BlnFunction> tempTable;
     for (std::size_t i = 0;i<functions.size();i++) {
@@ -553,7 +580,10 @@ std::vector<std::vector<BlnFunction>> createTruthTable(std::array<std::array<std
             for (std::size_t k = 0; k<INPUT_SHARES*INPUT_BITS;k++) {
                 result ^= bits[k] ^ im_result[k];
             }
-            truthTable[j] = result;
+            for (std::size_t k = 0; k<INPUT_SHARES*INPUT_BITS;k++) {
+                result = result ^ linear_bits[i][k];
+            }
+            truthTable[j] = result ^ constant_bits[i];
         }
         std::cout << i << std::endl;
         tempTable.push_back(BlnFunction(truthTable));
@@ -572,26 +602,31 @@ std::vector<std::vector<BlnFunction>> readRealization(const std::string& filenam
     std::ifstream ifs(filename);
 
     std::string line;
-    std::array<std::array<std::bitset<INPUT_SHARES*INPUT_BITS>, INPUT_SHARES*INPUT_BITS>, OUTPUT_SHARES*OUTPUT_BITS> functions;
+    std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>> functions;
     std::size_t nb_so_far = 0;
-    std::size_t i = 0;
+    std::getline(ifs, line);
+    std::bitset<OUTPUT_SHARES_BITS> constant_bits(line);
+        std::vector<std::bitset<INPUT_SHARES_BITS>> linear_bits;
+    for (std::size_t j=0;j<OUTPUT_SHARES_BITS;j++) {
+        std::getline(ifs,line);
+        linear_bits.push_back(std::bitset<INPUT_SHARES_BITS>(line));
+    }
+    std::vector<std::bitset<INPUT_SHARES_BITS>> function;
     while(std::getline(ifs, line)) {
-        std::array<std::bitset<INPUT_SHARES*INPUT_BITS>, INPUT_SHARES*INPUT_BITS> function;
-        if(line.size() != INPUT_SHARES*INPUT_BITS)
+        if(line.size() != INPUT_SHARES_BITS)
             std::cout << "Warning: incorrect input size given, got " << line.size()
-                      << " expecting " << INPUT_SHARES*INPUT_BITS << '.' << std::endl;
-        function[nb_so_far] = std::bitset<INPUT_SHARES*INPUT_BITS>(line);
+                      << " expecting " << INPUT_SHARES_BITS << '.' << std::endl;
+        function.push_back(std::bitset<INPUT_SHARES_BITS>(line));
         nb_so_far++;
-        if(nb_so_far == INPUT_SHARES*INPUT_BITS) {
-            functions[i] = function;
-            std::fill_n(function.begin(), function.size(), 0);
+        if(nb_so_far == INPUT_SHARES_BITS) {
+            functions.push_back(function);
+            function.clear();
             nb_so_far = 0;
-            i += 1;
         }
     }
     if(nb_so_far)
         std::cout << "Warning: missing shares for last component." << std::endl;
-    result = createTruthTable(functions);
+    result = createTruthTable(functions, constant_bits, linear_bits);
     std::cout << "Read realization with " << result.size() << " components."
               << std::endl;
     return result;
