@@ -94,4 +94,9 @@ BooleanFunction<NIn> operator+(BooleanFunction<NIn> lhs,
     return lhs;
 }
 
+template<std::size_t NIn>
+bool operator<(const BooleanFunction<NIn>& b1, const BooleanFunction<NIn>& b2) {
+    return b1.BitArray.to_ulong() < b2.BitArray.to_ulong();
+}
+
 #endif // _BOOLEANFUNCTION_H_INCLUDE_GUARD

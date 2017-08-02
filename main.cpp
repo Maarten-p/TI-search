@@ -206,6 +206,68 @@ bool shouldAddCorrection(const std::map<Indices, std::vector<VecCorrectionFuncti
 
 }
 
+struct Comparer {
+    bool operator() (const VecCorrectionFunction&b1, const VecCorrectionFunction&b2) const {
+        std::size_t size1 = b1.size();
+        std::size_t size2 = b2.size();
+        if (size1 < size2)
+            return true;
+        else if (size1 > size2)
+            return false;
+        for(std::size_t i=0;i<b1.size();i++) {
+            std::size_t size11 = b1[i].size();
+            std::size_t size22 = b2[i].size();
+            if (size11 < size22)
+                return true;
+            else if (size11 > size22)
+                return false;
+            for (std::size_t j=0;j<b1[i].size();j++) {
+                for (std::size_t k=0;k<b1[i][j].size();k++) {
+                    if (b1[i][j][k] < b2[i][j][k])
+                        return true;
+                    else if (b1[i][j][k] > b2[i][j][k])
+                        return false;
+                }
+            }
+        }
+        return false;
+    }
+};
+std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> getMap(std::vector<VecCorrectionFunction> functions) {
+    std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> results;
+    for (size_t i=0;i<functions.size();i++) {
+        VecCorrectionFunction key;
+        CorrectionFunction value = functions[i][0];
+        for (size_t j=1;j<functions[i].size();j++) {
+            key.push_back(functions[i][j]);
+        }
+        const VecCorrectionFunction& constKey = key;
+        if (!results.count(key))
+            int i = 0;
+            results[key] = std::vector<CorrectionFunction>();
+        results.at(key).push_back(value);
+    }
+    return results;
+}
+
+std::vector<VecCorrectionFunction> combineFunctions(std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> possibilities1, std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> possibilities2) {
+    std::vector<VecCorrectionFunction> results;
+    for(const auto& pair : possibilities1) {
+        if (possibilities2.count(pair.first)) {
+            for (const auto& possibility1:pair.second) {
+                for(const auto& possibility2:possibilities2.at(pair.first)) {
+                    VecCorrectionFunction result;
+                    result.push_back(possibility1);
+                    result.push_back(possibility2);
+                    result.insert(result.end(),pair.first.begin(),pair.first.end());
+                    results.push_back(result);
+                }
+            }
+        }
+    }
+    return results;
+}
+
 std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions(
     const std::map<Indices, std::vector<VecCorrectionFunction>>& functions,
     int nb_components, int level) {
@@ -223,24 +285,40 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
         Indices ind_no_first = ind.without(0);
         // Remove the second index
         Indices ind_no_second = ind.without(1);
-
         std::cout << "\touter loop size is "  << functions.at(ind_no_first).size()
                   << "\n\tinner loop size is " << functions.at(ind_no_second).size()
                   << std::endl;
         std::size_t count = 0;
-        for(const auto& correction1 : functions.at(ind_no_first)) {
-            for(const auto& correction2 : functions.at(ind_no_second)) {
-                VecCorrectionFunction correction = correction1;
-                correction.insert(
-                    correction.end(), correction2.begin(), correction2.end()
-                );
-                if(shouldAddCorrection(functions, ind, correction)) {
+        if(level==2) {
+            for(const auto& correction1 : functions.at(ind_no_first)) {
+                for(const auto& correction2 : functions.at(ind_no_second)) {
+                    VecCorrectionFunction correction = correction1;
+                    correction.insert(
+                        correction.end(), correction2.begin(), correction2.end()
+                    );
                     if(!result.count(ind))
                         result[ind] = std::vector<VecCorrectionFunction>();
                     result[ind].push_back(correction);
                 }
             }
         }
+  
+        else {
+//            std::vector<int> common_indices;
+//            std::set_intersection(ind_no_first.indices.begin(), ind_no_first.indices.end(),
+//                          ind_no_second.indices.begin(), ind_no_second.indices.end(),
+//                          std::back_inserter(common_indices));
+//            if (common_indices.size()<level-2)
+//                continue;
+//            int no_first_indexes = findUncommonIndex(ind_no_first.indices, common_indices);
+//            std::vector<int> no_second_indexes = findUncommonIndex(ind_no_second.indices, common_indices);
+            std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> possibilities1 = getMap(functions.at(ind_no_first));
+            std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> possibilities2 = getMap(functions.at(ind_no_second));
+            if(!result.count(ind))
+                result[ind] = std::vector<VecCorrectionFunction>();
+            result[ind] = combineFunctions(possibilities1,possibilities2);
+        }
+        
     }
     return result;
 }
