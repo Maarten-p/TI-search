@@ -501,13 +501,20 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
         // The result is a flattened vector of vectorial boolean functions
         std::vector<std::vector<BlnFunction>> corrected_realization;
         std::size_t i_corrected = 0;
+        std::vector<BlnFunction> temp_realization;
         for(std::size_t i : indices.indices) {
-            std::vector<BlnFunction> temp_realization;
             for(std::size_t s = 0; s < realization[i].size(); ++s) {
-                BlnFunction correctionTruthTable = truthTable((*it)[i_corrected][s]);
-                temp_realization.push_back(realization[i][s] + correctionTruthTable);
+                BlnFunction test1 = truthTable((*it)[i_corrected][s]);
+                BlnFunction test2 = realization[i][s];
+                std::cout << i << std::endl;
+                std::cout << s << std::endl;
+                std::cout << test2.getTruthTable().to_string() << std::endl;
+                std::cout << test1.getTruthTable().to_string() << std::endl;
+                
+                temp_realization.push_back(test1+test2);
             }
             corrected_realization.push_back(temp_realization);
+            temp_realization.clear();
             ++i_corrected;
         }
 
@@ -548,35 +555,40 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
         const std::size_t batch_size = pair.second.size() / MAX_THREADS;
         std::vector<std::future<std::vector<VecCorrectionFunction>>> results;
         auto it = pair.second.begin();
-        for(; it < pair.second.end() - batch_size; it += batch_size) {
-            results.emplace_back(std::async(std::launch::async,
-                makeBatchUniformWith, directory, realization,
-                nb_input_variables, pair.first, it,
-                it + batch_size, batch_nb
-            ));
-            ++batch_nb;
-            std::cout << batch_nb << std::endl;
-        }
-        // Start batch with remainder
-        results.emplace_back(std::async(std::launch::async,
-            makeBatchUniformWith, directory, realization,
-            nb_input_variables, pair.first, it,
-            pair.second.end(), batch_nb
-        ));
+        
+//        for(; it < pair.second.end() - batch_size; it += batch_size) {
+//            results.emplace_back(std::async(std::launch::async,
+//                makeBatchUniformWith, directory, realization,
+//                nb_input_variables, pair.first, it,
+//                it + batch_size, batch_nb
+//            ));
+//            ++batch_nb;
+//            std::cout << batch_nb << std::endl;
+//        }
+//        // Start batch with remainder
+//        results.emplace_back(std::async(std::launch::async,
+//            makeBatchUniformWith, directory, realization,
+//            nb_input_variables, pair.first, it,
+//            pair.second.end(), batch_nb
+//        ));
 
         // Retrieve the results
         int i = 0;
-        for(auto& future : results) {
+        //for(auto& future : results) {
             i +=1;
             std::cout << i << "test" << std::endl;
-            std::vector<VecCorrectionFunction> corrections = future.get();
+            std::vector<VecCorrectionFunction> corrections = makeBatchUniformWith(directory, realization,
+                nb_input_variables, pair.first, it,
+                pair.second.end(), batch_nb
+            );
+            //std::vector<VecCorrectionFunction> corrections = future.get();
             if(!corrections.empty() && !filtered_functions.count(pair.first))
                 filtered_functions[pair.first] = std::vector<VecCorrectionFunction>();
             std::vector<VecCorrectionFunction>& results_so_far = filtered_functions[pair.first];
             std::cout << results_so_far.size() << std::endl;
             std::cout << corrections.size() << std::endl;
             results_so_far.insert(results_so_far.begin(), corrections.begin(), corrections.end());
-        }
+        //}
     }
     return filtered_functions;
 }

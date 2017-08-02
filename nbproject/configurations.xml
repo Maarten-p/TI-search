@@ -26,7 +26,7 @@
         <rebuildPropChanged>false</rebuildPropChanged>
       </toolsSet>
       <flagsDictionary>
-        <element flagsID="0" commonFlags="-mtune=generic -march=x86-64 -O3 -std=c++11"/>
+        <element flagsID="0" commonFlags="-std=c++11 -O3"/>
       </flagsDictionary>
       <codeAssistance>
       </codeAssistance>
@@ -36,18 +36,6 @@
           <buildCommand>${MAKE} -f Makefile</buildCommand>
           <cleanCommand>${MAKE} -f Makefile clean</cleanCommand>
           <executablePath>/users/cosic/mpieck/Downloads/tool/uniformity.exe</executablePath>
-          <ccTool>
-            <incDir>
-              <pElem>/usr/include/c++/4.8.2/bits</pElem>
-              <pElem>/usr/include/c++/4.8.2</pElem>
-              <pElem>/usr/include/c++/4.8.2/ext</pElem>
-              <pElem>/usr/include/c++/4.8.2/x86_64-redhat-linux/bits</pElem>
-              <pElem>.</pElem>
-              <pElem>/usr/include/c++/4.8.2/debug</pElem>
-              <pElem>/usr/include/c++/4.8.2/backward</pElem>
-              <pElem>/usr/include/c++/4.8.2/x86_64-redhat-linux</pElem>
-            </incDir>
-          </ccTool>
         </makeTool>
         <preBuild>
           <preBuildCommandWorkingDir>.</preBuildCommandWorkingDir>
