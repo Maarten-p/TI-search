@@ -17,6 +17,7 @@ constexpr std::size_t OUTPUT_BITS = 4;
 constexpr std::size_t INPUT_SHARES_BITS = INPUT_BITS * INPUT_SHARES;
 constexpr std::size_t OUTPUT_SHARES_BITS = OUTPUT_BITS * OUTPUT_SHARES;
 constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS * INPUT_SHARES);
+constexpr std::size_t OUTPUT_SIZE = std::pow(2, OUTPUT_BITS * OUTPUT_SHARES);
 
 typedef BooleanFunction<INPUT_SIZE> BlnFunction;
 typedef std::array<std::bitset<INPUT_SHARES_BITS>, OUTPUT_SHARES> CorrectionFunction;
@@ -102,12 +103,11 @@ std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
             std::bitset<INPUT_SHARES_BITS> bits_j(j);
             if(!areSharesZero(bits_j, 1) || spectrum2[j] != 0)
                 continue;
-
+            
             std::bitset<INPUT_SHARES_BITS> bits_l = bits_i ^ bits_j;
             std::size_t l = bits_l.to_ulong();
             if(!areSharesZero(bits_l, 2) || spectrum3[l] != 0)
                 continue;
-
             CorrectionFunction cf {
                 bits_i,
                 bits_j,
@@ -207,7 +207,7 @@ bool shouldAddCorrection(const std::map<Indices, std::vector<VecCorrectionFuncti
 }
 
 struct Comparer {
-    bool operator() (const VecCorrectionFunction&b1, const VecCorrectionFunction&b2) const {
+    bool operator() (const VecCorrectionFunction& b1, const VecCorrectionFunction& b2) const {
         std::size_t size1 = b1.size();
         std::size_t size2 = b2.size();
         if (size1 < size2)
@@ -250,7 +250,7 @@ std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> getMap(
     return results;
 }
 
-std::vector<VecCorrectionFunction> combineFunctions(std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> possibilities1, std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> possibilities2) {
+std::vector<VecCorrectionFunction> combineFunctions(std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer>& possibilities1, std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer>& possibilities2) {
     std::vector<VecCorrectionFunction> results;
     for(const auto& pair : possibilities1) {
         if (possibilities2.count(pair.first)) {
@@ -292,6 +292,8 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
         if(level==2) {
             for(const auto& correction1 : functions.at(ind_no_first)) {
                 for(const auto& correction2 : functions.at(ind_no_second)) {
+                    int v1 = rand() % 100; 
+                    if (v1 == 5) {
                     VecCorrectionFunction correction = correction1;
                     correction.insert(
                         correction.end(), correction2.begin(), correction2.end()
@@ -299,6 +301,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
                     if(!result.count(ind))
                         result[ind] = std::vector<VecCorrectionFunction>();
                     result[ind].push_back(correction);
+                    }
                 }
             }
         }
@@ -417,7 +420,7 @@ std::vector<std::bitset<3>> get3Sharing(bool bit)
 //    return result;
 //}
 
-bool isCorrectSharing(const InputBitArray input, const SharedInputBitArray sharedInput) {
+bool isCorrectSharing(const InputBitArray& input, const SharedInputBitArray& sharedInput) {
     for (std::size_t i = 0; i<INPUT_BITS;i++) {
         bool temp = 0;
         for (std::size_t j = 0; j<INPUT_SHARES;j++) {
@@ -431,12 +434,12 @@ bool isCorrectSharing(const InputBitArray input, const SharedInputBitArray share
     
 }
 
-bool checkUniformity(const std::vector<std::vector<BlnFunction>> components,
+bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
     std::size_t nb_input_variables, std::size_t expected_count)
 {
-    const std::size_t input_size = std::pow(2, nb_input_variables);
-    const std::size_t shared_input_size = std::pow(2, INPUT_SHARES * nb_input_variables);
-    std::vector<std::vector<std::size_t>> counts(INPUT_BITS, std::vector<std::size_t>(OUTPUT_SHARES*OUTPUT_BITS,0));
+    const std::size_t input_size = std::pow(2, INPUT_BITS);
+    const std::size_t shared_input_size = std::pow(2, INPUT_SHARES * INPUT_BITS);
+    std::vector<std::vector<std::size_t>> counts(input_size, std::vector<std::size_t>(OUTPUT_SIZE,0));
     for(std::size_t i = 0; i < input_size; ++i) {
         InputBitArray input(i); 
         for(std::size_t j = 0; j < shared_input_size; ++j) {
@@ -444,15 +447,12 @@ bool checkUniformity(const std::vector<std::vector<BlnFunction>> components,
             if (isCorrectSharing(input,shared_input)) {
                 std::bitset<OUTPUT_BITS*OUTPUT_SHARES> outputs;
                 for(std::size_t k = 0; k < components.size(); ++k) {
-                    bool output = 0;
-                    for (BlnFunction sharing : components[k]) {
-                        output = output ^ sharing[j];
+                    for (std::size_t l = 0; l < OUTPUT_SHARES; ++l) {
+                        outputs[k*OUTPUT_BITS+l] = components[k][l][j];
                     }
-                    outputs[k] = output;
-                    
                 }
-                counts[i][outputs.to_ulong()] += 1;
-                if(counts[i][outputs.to_ulong()] > expected_count)
+                counts[i][(int) outputs.to_ulong()] += 1;
+                if(counts[i][(int) outputs.to_ulong()] > expected_count)
                    return false;
             }
         }
@@ -460,8 +460,8 @@ bool checkUniformity(const std::vector<std::vector<BlnFunction>> components,
     return true;
 }
 
-BlnFunction truthTable(const std::bitset<INPUT_SHARES_BITS> correction_term) {
-    BlnFunction::BitArray truthTable;
+BlnFunction truthTable1(const std::bitset<INPUT_SHARES_BITS>& correction_term, BlnFunction origin) {
+    BlnFunction::BitArray truthTable = origin.getTruthTable();
     for (std::size_t j = 0;j<INPUT_SIZE;j++) {
         std::bitset<INPUT_SHARES_BITS> bits(j);
         bool result = 0;
@@ -469,9 +469,21 @@ BlnFunction truthTable(const std::bitset<INPUT_SHARES_BITS> correction_term) {
         for (std::size_t k = 0; k<INPUT_SHARES_BITS;k++) {
             result ^= im_result[k];
         }
-        truthTable[j] = result;
+        truthTable[j] = truthTable[j] ^ result;
     }
     return BlnFunction(truthTable);
+}
+
+BlnFunction truthTable2(const std::bitset<INPUT_SHARES_BITS>& correction_term, BlnFunction origin) {
+    BlnFunction::BitArray test = origin.getTruthTable();
+    for (std::size_t i = 0;i<INPUT_SHARES_BITS;i++) {
+        if (correction_term[i]) {
+            for (std::size_t j = 0;j<INPUT_SIZE;j+std::pow(2,i)) {
+                test[j] = test[j]^1;
+            }
+        }
+    }
+    return BlnFunction(test);
 }
 
 typedef std::vector<VecCorrectionFunction>::const_iterator FunctionIter;
@@ -504,14 +516,7 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
         std::vector<BlnFunction> temp_realization;
         for(std::size_t i : indices.indices) {
             for(std::size_t s = 0; s < realization[i].size(); ++s) {
-                BlnFunction test1 = truthTable((*it)[i_corrected][s]);
-                BlnFunction test2 = realization[i][s];
-                std::cout << i << std::endl;
-                std::cout << s << std::endl;
-                std::cout << test2.getTruthTable().to_string() << std::endl;
-                std::cout << test1.getTruthTable().to_string() << std::endl;
-                
-                temp_realization.push_back(test1+test2);
+                temp_realization.push_back(truthTable1((*it)[i_corrected][s], realization[i][s]));
             }
             corrected_realization.push_back(temp_realization);
             temp_realization.clear();
@@ -555,40 +560,45 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
         const std::size_t batch_size = pair.second.size() / MAX_THREADS;
         std::vector<std::future<std::vector<VecCorrectionFunction>>> results;
         auto it = pair.second.begin();
-        
-//        for(; it < pair.second.end() - batch_size; it += batch_size) {
-//            results.emplace_back(std::async(std::launch::async,
-//                makeBatchUniformWith, directory, realization,
-//                nb_input_variables, pair.first, it,
-//                it + batch_size, batch_nb
-//            ));
-//            ++batch_nb;
-//            std::cout << batch_nb << std::endl;
-//        }
-//        // Start batch with remainder
-//        results.emplace_back(std::async(std::launch::async,
-//            makeBatchUniformWith, directory, realization,
-//            nb_input_variables, pair.first, it,
-//            pair.second.end(), batch_nb
-//        ));
-
-        // Retrieve the results
-        int i = 0;
-        //for(auto& future : results) {
-            i +=1;
-            std::cout << i << "test" << std::endl;
-            std::vector<VecCorrectionFunction> corrections = makeBatchUniformWith(directory, realization,
+        if(1) {
+            for(; it < pair.second.end() - batch_size; it += batch_size) {
+                results.emplace_back(std::async(std::launch::async,
+                    makeBatchUniformWith, directory, realization,
+                    nb_input_variables, pair.first, it,
+                    it + batch_size, batch_nb
+                ));
+                ++batch_nb;
+            }
+            // Start batch with remainder
+            results.emplace_back(std::async(std::launch::async,
+                makeBatchUniformWith, directory, realization,
                 nb_input_variables, pair.first, it,
                 pair.second.end(), batch_nb
-            );
-            //std::vector<VecCorrectionFunction> corrections = future.get();
-            if(!corrections.empty() && !filtered_functions.count(pair.first))
-                filtered_functions[pair.first] = std::vector<VecCorrectionFunction>();
-            std::vector<VecCorrectionFunction>& results_so_far = filtered_functions[pair.first];
-            std::cout << results_so_far.size() << std::endl;
-            std::cout << corrections.size() << std::endl;
-            results_so_far.insert(results_so_far.begin(), corrections.begin(), corrections.end());
-        //}
+            ));
+
+            // Retrieve the results
+            int i = 0;
+            for(auto& future : results) {
+                i +=1;
+    //            std::vector<VecCorrectionFunction> corrections = makeBatchUniformWith(directory, realization,
+    //                nb_input_variables, pair.first, it,
+    //                pair.second.end(), batch_nb
+    //            );
+                std::vector<VecCorrectionFunction> corrections = future.get();
+                if(!corrections.empty() && !filtered_functions.count(pair.first))
+                    filtered_functions[pair.first] = std::vector<VecCorrectionFunction>();
+                filtered_functions[pair.first].insert(filtered_functions[pair.first].end(),corrections.begin(),corrections.end());
+            }
+        }
+        else {
+                std::vector<VecCorrectionFunction> corrections = makeBatchUniformWith(directory, realization,
+                    nb_input_variables, pair.first, it,
+                    pair.second.end(), batch_nb
+                );
+                if(!corrections.empty() && !filtered_functions.count(pair.first))
+                    filtered_functions[pair.first] = std::vector<VecCorrectionFunction>();
+                filtered_functions[pair.first].insert(filtered_functions[pair.first].end(),corrections.begin(),corrections.end());
+        }
     }
     return filtered_functions;
 }
@@ -596,7 +606,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
 void makeUniform(
     const std::string& directory,
     std::map<Indices, std::vector<VecCorrectionFunction>> functions,
-    const std::vector<std::vector<BlnFunction>>& realization,
+    const std::vector<std::vector<BlnFunction>> realization,
     std::size_t nb_input_variables) {
 
     int level = 2;
@@ -620,7 +630,7 @@ void makeUniform(
                   << " candidates." << std::endl;
         functions = makeUniformWith(directory, realization, nb_input_variables, candidates);
 
-        std::cout << "Found " << countCorrectionFunctions(candidates)
+        std::cout << "Found " << countCorrectionFunctions(functions)
                   << " correction functions." << std::endl;
         level++;
     }
@@ -658,7 +668,7 @@ void makeUniform(
 //    return result;
 //}
 
-std::vector<std::vector<BlnFunction>> createTruthTable(std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>> functions, std::bitset<OUTPUT_SHARES_BITS> constant_bits, std::vector<std::bitset<INPUT_SHARES_BITS>> linear_bits) {
+std::vector<std::vector<BlnFunction>> createTruthTable(std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>& functions, std::bitset<OUTPUT_SHARES_BITS>& constant_bits, std::vector<std::bitset<INPUT_SHARES_BITS>>& linear_bits) {
     std::vector<std::vector<BlnFunction>> truthTables;
     std::vector<BlnFunction> tempTable;
     for (std::size_t i = 0;i<functions.size();i++) {
@@ -742,22 +752,23 @@ std::vector<std::vector<BlnFunction>> readRealization(const std::string& filenam
 int main(int argc, char *argv[])
 {
     
-    if(argc < 4) {
-        std::cerr << "Usage: <number of inputs> <output directory> <filename>."
-                  << std::endl;
-        return 1;
-    }
-    std::size_t nb_inputs = std::stoi(argv[1]);
-    if(nb_inputs != INPUT_BITS) {
-        std::cerr << "Expected exactly " << INPUT_BITS << " input bits."
-                  << std::endl;
-        return 1;
-    }
-    
-    std::cout << "Reading realization..." << std::endl;
-    auto realization = readRealization(argv[3]);
+//    if(argc < 4) {
+//        std::cerr << "Usage: <number of inputs> <output directory> <filename>."
+//                  << std::endl;
+//        return 1;
+//    }
+//    std::size_t nb_inputs = std::stoi(argv[1]);
+//    if(nb_inputs != INPUT_BITS) {
+//        std::cerr << "Expected exactly " << INPUT_BITS << " input bits."
+//                  << std::endl;
+//        return 1;
+//    }
+//    
+//    std::cout << "Reading realization..." << std::endl;
+    auto realization = readRealization("new_format_perm.in");
+    std::size_t nb_inputs = INPUT_BITS;
     makeUniform(
-        argv[2], buildCorrectionTerms(realization),
+        "test", buildCorrectionTerms(realization),
         realization, nb_inputs 
     ); 
     
