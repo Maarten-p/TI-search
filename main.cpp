@@ -324,8 +324,8 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
         if(level==2) {
             for(const auto& correction1 : functions.at(ind_no_first)) {
                 for(const auto& correction2 : functions.at(ind_no_second)) {
-                    //int v1 = rand() % 10; 
-                    //if (v1 == 5) {
+                    int v1 = rand() % 10; 
+                    if (v1 == 5) {
                     VecCorrectionFunction correction = correction1;
                     correction.insert(
                         correction.end(), correction2.begin(), correction2.end()
@@ -333,7 +333,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
                     if(!result.count(ind))
                         result[ind] = std::vector<VecCorrectionFunction>();
                     result[ind].push_back(correction);
-                    //}
+                    }
                 }
             }
         }
@@ -484,8 +484,14 @@ bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
                     }
                 }
                 counts[i][(int) outputs.to_ulong()] += 1;
-                if(counts[i][(int) outputs.to_ulong()] > expected_count)
-                   return false;
+                std::cout << outputs << std::endl;
+                if(counts[i][(int) outputs.to_ulong()] > 5*expected_count) {
+                    std::cout << i << std::endl;
+                    std::cout << (int) outputs.to_ulong() << std::endl;
+                    std::cout << 20*expected_count << std::endl;
+                    std::cout << counts[i][(int) outputs.to_ulong()] << std::endl;
+                    return false;
+                }
             }
         }
     }
@@ -546,7 +552,7 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
         if(checkUniformity(corrected_realization, nb_input_variables, expected_count)) {
             ++nb_found;
             good_correction_functions.push_back(*it);
-            os << "Found " << nb_found << " of " << nb_done << " correction functions."
+            std::cout << "Found " << nb_found << " of " << nb_done << " correction functions."
                << std::endl;
         }
         ++nb_done;
