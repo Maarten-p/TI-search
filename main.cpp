@@ -25,6 +25,8 @@ typedef std::vector<CorrectionFunction> VecCorrectionFunction;
 typedef std::bitset<INPUT_BITS> InputBitArray;
 typedef std::bitset<INPUT_SHARES * INPUT_BITS> SharedInputBitArray;
 
+std::vector<std::bitset<OUTPUT_SIZE>> globalTruthTable(INPUT_SIZE,0);
+
 struct Indices {
     std::vector<std::size_t> indices;
 
@@ -68,6 +70,33 @@ bool areSharesZero(const std::bitset<INPUT_SHARES_BITS>& bits, std::size_t share
     return true;
 }
 
+BlnFunction truthTable1(const std::bitset<INPUT_SHARES_BITS>& correction_term, BlnFunction origin) {
+    BlnFunction::BitArray truthTable = origin.getTruthTable();
+    for (std::size_t j = 0;j<INPUT_SIZE;j++) {
+        std::bitset<INPUT_SHARES_BITS> bits(j);
+        bool result = 0;
+        std::bitset<INPUT_SHARES_BITS> im_result = bits & correction_term;
+        for (std::size_t k = 0; k<INPUT_SHARES_BITS;k++) {
+            result ^= im_result[k];
+        }
+        truthTable[j] = truthTable[j] ^ result;
+    }
+    return BlnFunction(truthTable);
+}
+
+void addToTruthTable(std::bitset<INPUT_SHARES_BITS> correction_term) {
+    BlnFunction::BitArray truthTable;
+    for (std::size_t j = 0;j<INPUT_SIZE;j++) {
+        std::bitset<INPUT_SHARES_BITS> bits(j);
+        bool result = 0;
+        std::bitset<INPUT_SHARES_BITS> im_result = bits & correction_term;
+        for (std::size_t k = 0; k<INPUT_SHARES_BITS;k++) {
+            result ^= im_result[k];
+        }
+        truthTable[j] = result;
+    }
+    globalTruthTable[(int) correction_term.to_ulong()] = truthTable;
+}
 /**
  * Finds linear correction terms for the sharing (f1, f2, f3).
  * @note f1, f2 and f3 are assumed to be non-reduced, but nevertheless
@@ -116,6 +145,9 @@ std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
 
             // Found a solution, add to list
             solutions.push_back({cf});
+            addToTruthTable(bits_i);
+            addToTruthTable(bits_j);
+            addToTruthTable(bits_l);
         }
     }
 
@@ -292,8 +324,8 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
         if(level==2) {
             for(const auto& correction1 : functions.at(ind_no_first)) {
                 for(const auto& correction2 : functions.at(ind_no_second)) {
-                    int v1 = rand() % 100; 
-                    if (v1 == 5) {
+                    //int v1 = rand() % 10; 
+                    //if (v1 == 5) {
                     VecCorrectionFunction correction = correction1;
                     correction.insert(
                         correction.end(), correction2.begin(), correction2.end()
@@ -301,7 +333,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
                     if(!result.count(ind))
                         result[ind] = std::vector<VecCorrectionFunction>();
                     result[ind].push_back(correction);
-                    }
+                    //}
                 }
             }
         }
@@ -460,19 +492,7 @@ bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
     return true;
 }
 
-BlnFunction truthTable1(const std::bitset<INPUT_SHARES_BITS>& correction_term, BlnFunction origin) {
-    BlnFunction::BitArray truthTable = origin.getTruthTable();
-    for (std::size_t j = 0;j<INPUT_SIZE;j++) {
-        std::bitset<INPUT_SHARES_BITS> bits(j);
-        bool result = 0;
-        std::bitset<INPUT_SHARES_BITS> im_result = bits & correction_term;
-        for (std::size_t k = 0; k<INPUT_SHARES_BITS;k++) {
-            result ^= im_result[k];
-        }
-        truthTable[j] = truthTable[j] ^ result;
-    }
-    return BlnFunction(truthTable);
-}
+
 
 BlnFunction truthTable2(const std::bitset<INPUT_SHARES_BITS>& correction_term, BlnFunction origin) {
     BlnFunction::BitArray test = origin.getTruthTable();
@@ -516,7 +536,7 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
         std::vector<BlnFunction> temp_realization;
         for(std::size_t i : indices.indices) {
             for(std::size_t s = 0; s < realization[i].size(); ++s) {
-                temp_realization.push_back(truthTable1((*it)[i_corrected][s], realization[i][s]));
+                temp_realization.push_back(BlnFunction(globalTruthTable[(int) (*it)[i_corrected][s].to_ulong()])+realization[i][s]);
             }
             corrected_realization.push_back(temp_realization);
             temp_realization.clear();
@@ -530,7 +550,7 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
                << std::endl;
         }
         ++nb_done;
-        if (nb_done % 10000 == 0)
+        if (nb_done % 100000 == 0)
             std::cout << nb_done << std::endl;
     }
     return good_correction_functions;
@@ -769,7 +789,7 @@ int main(int argc, char *argv[])
     std::size_t nb_inputs = INPUT_BITS;
     makeUniform(
         "test", buildCorrectionTerms(realization),
-        realization, nb_inputs 
+        realization, nb_inputs
     ); 
     
     return 0;
