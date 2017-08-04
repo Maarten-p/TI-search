@@ -5,7 +5,6 @@
 #include <future>
 #include <map>
 #include <tuple>
-
 #include "BooleanFunction.h" 
 
 constexpr std::size_t MAX_THREADS = 8;
@@ -326,9 +325,9 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
                 for(const auto& correction2 : functions.at(ind_no_second)) {
                     int v1 = rand() % 10; 
                     if (v1 == 5) {
-                    VecCorrectionFunction correction = correction1;
+                    VecCorrectionFunction correction = correction2;
                     correction.insert(
-                        correction.end(), correction2.begin(), correction2.end()
+                        correction.end(), correction1.begin(), correction1.end()
                     );
                     if(!result.count(ind))
                         result[ind] = std::vector<VecCorrectionFunction>();
@@ -351,7 +350,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
             std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> possibilities2 = getMap(functions.at(ind_no_second));
             if(!result.count(ind))
                 result[ind] = std::vector<VecCorrectionFunction>();
-            result[ind] = combineFunctions(possibilities1,possibilities2);
+            result[ind] = combineFunctions(possibilities2,possibilities1);
         }
         
     }
@@ -467,10 +466,13 @@ bool isCorrectSharing(const InputBitArray& input, const SharedInputBitArray& sha
 }
 
 bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
-    std::size_t nb_input_variables, std::size_t expected_count)
+    std::size_t nb_input_variables, const std::size_t level)
 {
     const std::size_t input_size = std::pow(2, INPUT_BITS);
     const std::size_t shared_input_size = std::pow(2, INPUT_SHARES * INPUT_BITS);
+    const std::size_t expected_count = std::pow(
+        2, 2 * nb_input_variables - 2 * level
+);
     std::vector<std::vector<std::size_t>> counts(input_size, std::vector<std::size_t>(OUTPUT_SIZE,0));
     for(std::size_t i = 0; i < input_size; ++i) {
         InputBitArray input(i); 
@@ -480,16 +482,11 @@ bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
                 std::bitset<OUTPUT_BITS*OUTPUT_SHARES> outputs;
                 for(std::size_t k = 0; k < components.size(); ++k) {
                     for (std::size_t l = 0; l < OUTPUT_SHARES; ++l) {
-                        outputs[k*OUTPUT_BITS+l] = components[k][l][j];
+                        outputs[k*OUTPUT_SHARES+l] = components[k][l][j];
                     }
                 }
                 counts[i][(int) outputs.to_ulong()] += 1;
-                std::cout << outputs << std::endl;
-                if(counts[i][(int) outputs.to_ulong()] > 5*expected_count) {
-                    std::cout << i << std::endl;
-                    std::cout << (int) outputs.to_ulong() << std::endl;
-                    std::cout << 20*expected_count << std::endl;
-                    std::cout << counts[i][(int) outputs.to_ulong()] << std::endl;
+                if(counts[i][(int) outputs.to_ulong()] > expected_count) {
                     return false;
                 }
             }
@@ -520,7 +517,8 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
     std::size_t nb_input_variables,
     const Indices& indices,
     FunctionIter begin, FunctionIter end,
-    std::size_t batch_nb) {
+    std::size_t batch_nb,
+        const std::size_t level) {
 
     std::vector<VecCorrectionFunction> good_correction_functions;
 
@@ -528,10 +526,6 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
     
     std::size_t nb_done = 0;
     std::size_t nb_found = 0;
-
-    const std::size_t expected_count = std::pow(
-        2, 2 * nb_input_variables - 2 * realization.size()
-    );
 
     // Try all possible correction functions
     for(FunctionIter it = begin; it != end; ++it) {
@@ -549,14 +543,14 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
             ++i_corrected;
         }
 
-        if(checkUniformity(corrected_realization, nb_input_variables, expected_count)) {
+        if(checkUniformity(corrected_realization, nb_input_variables, level)) {
             ++nb_found;
             good_correction_functions.push_back(*it);
-            std::cout << "Found " << nb_found << " of " << nb_done << " correction functions."
-               << std::endl;
+            //std::cout << "Found " << nb_found << " of " << nb_done << " correction functions."
+            //   << std::endl;
         }
         ++nb_done;
-        if (nb_done % 100000 == 0)
+        if (nb_done % 10000 == 0)
             std::cout << nb_done << std::endl;
     }
     return good_correction_functions;
@@ -570,13 +564,12 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
     const std::string& directory,
     const std::vector<std::vector<BlnFunction>>& realization,
     std::size_t nb_input_variables,
-    const std::map<Indices, std::vector<VecCorrectionFunction>>& functions) {
+    const std::map<Indices, std::vector<VecCorrectionFunction>>& functions,
+        const std::size_t level) {
 
     std::map<Indices, std::vector<VecCorrectionFunction>> filtered_functions;
-    const std::size_t expected_count = std::pow(
-        2, 2 * nb_input_variables - 2 * realization.size()
-    );
-    if (checkUniformity(realization,nb_input_variables,expected_count)) {
+    
+    if (checkUniformity(realization,nb_input_variables,level)) {
         std::cout << "already uniform" << std::endl;
     }
         
@@ -591,7 +584,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
                 results.emplace_back(std::async(std::launch::async,
                     makeBatchUniformWith, directory, realization,
                     nb_input_variables, pair.first, it,
-                    it + batch_size, batch_nb
+                    it + batch_size, batch_nb, level
                 ));
                 ++batch_nb;
             }
@@ -599,7 +592,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
             results.emplace_back(std::async(std::launch::async,
                 makeBatchUniformWith, directory, realization,
                 nb_input_variables, pair.first, it,
-                pair.second.end(), batch_nb
+                pair.second.end(), batch_nb, level
             ));
 
             // Retrieve the results
@@ -619,7 +612,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
         else {
                 std::vector<VecCorrectionFunction> corrections = makeBatchUniformWith(directory, realization,
                     nb_input_variables, pair.first, it,
-                    pair.second.end(), batch_nb
+                    pair.second.end(), batch_nb, level
                 );
                 if(!corrections.empty() && !filtered_functions.count(pair.first))
                     filtered_functions[pair.first] = std::vector<VecCorrectionFunction>();
@@ -635,7 +628,7 @@ void makeUniform(
     const std::vector<std::vector<BlnFunction>> realization,
     std::size_t nb_input_variables) {
 
-    int level = 2;
+    std::size_t level = 2;
 
     while(level <= realization.size() && !functions.empty()) {
         std::cout << "Combining " << countCorrectionFunctions(functions)
@@ -654,7 +647,7 @@ void makeUniform(
 
         std::cout << "Starting search with " << countCorrectionFunctions(candidates)
                   << " candidates." << std::endl;
-        functions = makeUniformWith(directory, realization, nb_input_variables, candidates);
+        functions = makeUniformWith(directory, realization, nb_input_variables, candidates, level);
 
         std::cout << "Found " << countCorrectionFunctions(functions)
                   << " correction functions." << std::endl;
