@@ -8,7 +8,7 @@
 #include "BooleanFunction.h" 
 
 constexpr std::size_t MAX_THREADS = 8;
-
+constexpr std::size_t MAX_HAMMING_WEIGHT = 2;
 constexpr std::size_t INPUT_BITS = 4;
 constexpr std::size_t INPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_SHARES = 3;
@@ -25,6 +25,7 @@ typedef std::bitset<INPUT_BITS> InputBitArray;
 typedef std::bitset<INPUT_SHARES * INPUT_BITS> SharedInputBitArray;
 
 std::vector<std::bitset<OUTPUT_SIZE>> globalTruthTable(INPUT_SIZE,0);
+std::vector<std::bitset<INPUT_SIZE>> globalValidSharesTable;
 
 struct Indices {
     std::vector<std::size_t> indices;
@@ -67,6 +68,10 @@ bool areSharesZero(const std::bitset<INPUT_SHARES_BITS>& bits, std::size_t share
             return false;
     }
     return true;
+}
+
+bool hammingWeightConstraint(const std::bitset<INPUT_SHARES_BITS> bits) {
+    return bits.count() <= MAX_HAMMING_WEIGHT;
 }
 
 BlnFunction truthTable1(const std::bitset<INPUT_SHARES_BITS>& correction_term, BlnFunction origin) {
@@ -124,17 +129,17 @@ std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
 
     for(std::size_t i = 0; i < spectrum1.size(); ++i) {
         std::bitset<INPUT_SHARES_BITS> bits_i(i);
-        if(!areSharesZero(bits_i, 0) || spectrum1[i] != 0)
+        if(!areSharesZero(bits_i, 0) || spectrum1[i] != 0 || !hammingWeightConstraint(bits_i))
             continue;
 
         for(std::size_t j = 0; j < spectrum2.size(); ++j) {
             std::bitset<INPUT_SHARES_BITS> bits_j(j);
-            if(!areSharesZero(bits_j, 1) || spectrum2[j] != 0)
+            if(!areSharesZero(bits_j, 1) || spectrum2[j] != 0 || !hammingWeightConstraint(bits_j))
                 continue;
             
             std::bitset<INPUT_SHARES_BITS> bits_l = bits_i ^ bits_j;
             std::size_t l = bits_l.to_ulong();
-            if(!areSharesZero(bits_l, 2) || spectrum3[l] != 0)
+            if(!areSharesZero(bits_l, 2) || spectrum3[l] != 0 || !hammingWeightConstraint(bits_l))
                 continue;
             CorrectionFunction cf {
                 bits_i,
@@ -272,9 +277,7 @@ std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> getMap(
         for (size_t j=1;j<functions[i].size();j++) {
             key.push_back(functions[i][j]);
         }
-        const VecCorrectionFunction& constKey = key;
         if (!results.count(key))
-            int i = 0;
             results[key] = std::vector<CorrectionFunction>();
         results.at(key).push_back(value);
     }
@@ -323,7 +326,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
         if(level==2) {
             for(const auto& correction1 : functions.at(ind_no_first)) {
                 for(const auto& correction2 : functions.at(ind_no_second)) {
-                    int v1 = rand() % 10; 
+                    int v1 = rand() % 100; 
                     if (v1 == 5) {
                     VecCorrectionFunction correction = correction2;
                     correction.insert(
@@ -360,26 +363,19 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
 void writeFunctions(const std::string& directory, const std::string& file, 
     const std::map<Indices, std::vector<VecCorrectionFunction>>& functions) {
 
-    std::cout << "test1111111111111"<< '\n';
     std::ofstream ofs(directory + '/' + file);
     for(auto& pair : functions) {
-        std::cout << 1 << '\n';
         ofs << 1 << '\n';
         for(const VecCorrectionFunction& vf : pair.second) {
             for(const CorrectionFunction& f : vf) {
                 for(const std::bitset<INPUT_SHARES_BITS>& share : f) {
-                    std::cout << share << '\n';
                     ofs << '\t' << share << '\n';
                 }
-                std::cout << "\n\n";
                 ofs << "\n\n";
             }
-            //std::cout << "\n------------\n";
             ofs << "\n------------\n";
         }
-        std::cout << "test" << pair.second.size() << '\n';
     }
-    std::cout << std::endl;
     ofs << std::endl;
 }
 
@@ -465,6 +461,22 @@ bool isCorrectSharing(const InputBitArray& input, const SharedInputBitArray& sha
     
 }
 
+void createGlobalSharingTable() {
+    const std::size_t input_size_no_shares = std::pow(2, INPUT_BITS);
+    for(std::size_t i = 0; i < input_size_no_shares; ++i) {
+        InputBitArray input(i); 
+        std::bitset<INPUT_SIZE> allShares;
+        for(std::size_t j = 0; j < INPUT_SIZE; ++j) {
+            SharedInputBitArray shared_input(j);
+            if (isCorrectSharing(input,shared_input)) {
+                allShares[j] = 1;
+            }
+        }
+        globalValidSharesTable.push_back(allShares);
+    }       
+}
+
+
 bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
     std::size_t nb_input_variables, const std::size_t level)
 {
@@ -473,18 +485,19 @@ bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
     const std::size_t expected_count = std::pow(
         2, 2 * nb_input_variables - 2 * level
 );
+    //int test2;
     std::vector<std::vector<std::size_t>> counts(input_size, std::vector<std::size_t>(OUTPUT_SIZE,0));
     for(std::size_t i = 0; i < input_size; ++i) {
         InputBitArray input(i); 
         for(std::size_t j = 0; j < shared_input_size; ++j) {
-            SharedInputBitArray shared_input(j);
-            if (isCorrectSharing(input,shared_input)) {
+            if (globalValidSharesTable[i][j]) {
                 std::bitset<OUTPUT_BITS*OUTPUT_SHARES> outputs;
                 for(std::size_t k = 0; k < components.size(); ++k) {
                     for (std::size_t l = 0; l < OUTPUT_SHARES; ++l) {
                         outputs[k*OUTPUT_SHARES+l] = components[k][l][j];
                     }
                 }
+                //test2 = (int) outputs.to_ulong();
                 counts[i][(int) outputs.to_ulong()] += 1;
                 if(counts[i][(int) outputs.to_ulong()] > expected_count) {
                     return false;
@@ -655,7 +668,7 @@ void makeUniform(
     }
     
     std::cout << functions.size() << std::endl;
-    writeFunctions("test", "end.out", functions);
+    writeFunctions(directory, "end.out", functions);
     std::cout << "Process stopped at level " << level << '.' << std::endl;
 }
 
@@ -786,8 +799,9 @@ int main(int argc, char *argv[])
 //    std::cout << "Reading realization..." << std::endl;
     auto realization = readRealization("new_format_perm.in");
     std::size_t nb_inputs = INPUT_BITS;
+    createGlobalSharingTable();
     makeUniform(
-        "test", buildCorrectionTerms(realization),
+        "gf4", buildCorrectionTerms(realization),
         realization, nb_inputs
     ); 
     
