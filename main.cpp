@@ -25,7 +25,7 @@ typedef std::bitset<INPUT_BITS> InputBitArray;
 typedef std::bitset<INPUT_SHARES * INPUT_BITS> SharedInputBitArray;
 
 std::vector<std::bitset<OUTPUT_SIZE>> globalTruthTable(INPUT_SIZE,0);
-std::vector<std::bitset<INPUT_SIZE>> globalValidSharesTable;
+std::vector<std::vector<std::size_t>> globalValidSharesTable;
 
 struct Indices {
     std::vector<std::size_t> indices;
@@ -326,8 +326,8 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
         if(level==2) {
             for(const auto& correction1 : functions.at(ind_no_first)) {
                 for(const auto& correction2 : functions.at(ind_no_second)) {
-                    int v1 = rand() % 100; 
-                    if (v1 == 5) {
+                    //int v1 = rand() % 5; 
+                    //if (v1 == 1) {
                     VecCorrectionFunction correction = correction2;
                     correction.insert(
                         correction.end(), correction1.begin(), correction1.end()
@@ -335,7 +335,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
                     if(!result.count(ind))
                         result[ind] = std::vector<VecCorrectionFunction>();
                     result[ind].push_back(correction);
-                    }
+                    //}
                 }
             }
         }
@@ -465,11 +465,11 @@ void createGlobalSharingTable() {
     const std::size_t input_size_no_shares = std::pow(2, INPUT_BITS);
     for(std::size_t i = 0; i < input_size_no_shares; ++i) {
         InputBitArray input(i); 
-        std::bitset<INPUT_SIZE> allShares;
+        std::vector<std::size_t> allShares;
         for(std::size_t j = 0; j < INPUT_SIZE; ++j) {
             SharedInputBitArray shared_input(j);
             if (isCorrectSharing(input,shared_input)) {
-                allShares[j] = 1;
+                allShares.push_back(j);
             }
         }
         globalValidSharesTable.push_back(allShares);
@@ -489,19 +489,17 @@ bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
     std::vector<std::vector<std::size_t>> counts(input_size, std::vector<std::size_t>(OUTPUT_SIZE,0));
     for(std::size_t i = 0; i < input_size; ++i) {
         InputBitArray input(i); 
-        for(std::size_t j = 0; j < shared_input_size; ++j) {
-            if (globalValidSharesTable[i][j]) {
-                std::bitset<OUTPUT_BITS*OUTPUT_SHARES> outputs;
-                for(std::size_t k = 0; k < components.size(); ++k) {
-                    for (std::size_t l = 0; l < OUTPUT_SHARES; ++l) {
-                        outputs[k*OUTPUT_SHARES+l] = components[k][l][j];
-                    }
+        for(std::size_t validShare : globalValidSharesTable[i]) {
+            std::bitset<OUTPUT_BITS*OUTPUT_SHARES> outputs;
+            for(std::size_t k = 0; k < components.size(); ++k) {
+                for (std::size_t l = 0; l < OUTPUT_SHARES; ++l) {
+                    outputs[k*OUTPUT_SHARES+l] = components[k][l][validShare];
                 }
-                //test2 = (int) outputs.to_ulong();
-                counts[i][(int) outputs.to_ulong()] += 1;
-                if(counts[i][(int) outputs.to_ulong()] > expected_count) {
-                    return false;
-                }
+            }
+            //test2 = (int) outputs.to_ulong();
+            counts[i][(int) outputs.to_ulong()] += 1;
+            if(counts[i][(int) outputs.to_ulong()] > expected_count) {
+                return false;
             }
         }
     }
