@@ -8,7 +8,8 @@
 #include "BooleanFunction.h" 
 
 constexpr std::size_t MAX_THREADS = 8;
-constexpr std::size_t MAX_HAMMING_WEIGHT = 2;
+constexpr std::size_t MAX_HAMMING_WEIGHT = 2;;
+constexpr std::size_t MAX_HAMMING_WEIGHT_TOTAL = 4;
 constexpr std::size_t INPUT_BITS = 4;
 constexpr std::size_t OUTPUT_BITS = 4;
 constexpr std::size_t INPUT_SHARES = 3;
@@ -79,6 +80,10 @@ bool hammingWeightConstraint(const std::bitset<INPUT_SHARES_BITS> bits) {
     return bits.count() <= MAX_HAMMING_WEIGHT;
 }
 
+bool totalHammingWeightConstraint(const std::bitset<INPUT_SHARES_BITS> bits1, const std::bitset<INPUT_SHARES_BITS> bits2, const std::bitset<INPUT_SHARES_BITS> bits3) {
+    return (bits1.count()+bits2.count()+bits3.count()) <= MAX_HAMMING_WEIGHT_TOTAL;
+}
+
 BlnFunction truthTable1(const std::bitset<INPUT_SHARES_BITS>& correction_term, BlnFunction origin) {
     BlnFunction::BitArray truthTable = origin.getTruthTable();
     for (std::size_t j = 0;j<INPUT_SIZE;j++) {
@@ -144,7 +149,7 @@ std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
             
             std::bitset<INPUT_SHARES_BITS> bits_l = bits_i ^ bits_j;
             std::size_t l = bits_l.to_ulong();
-            if(!areSharesZero(bits_l, 2, outputIndex) || spectrum3[l] != 0 || !hammingWeightConstraint(bits_l))
+            if(!areSharesZero(bits_l, 2, outputIndex) || spectrum3[l] != 0 || !hammingWeightConstraint(bits_l) || !totalHammingWeightConstraint(bits_i,bits_j,bits_l))
                 continue;
             CorrectionFunction cf {
                 bits_i,
