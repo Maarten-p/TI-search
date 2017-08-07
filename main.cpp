@@ -10,9 +10,9 @@
 constexpr std::size_t MAX_THREADS = 8;
 constexpr std::size_t MAX_HAMMING_WEIGHT = 2;
 constexpr std::size_t INPUT_BITS = 4;
+constexpr std::size_t OUTPUT_BITS = 4;
 constexpr std::size_t INPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_SHARES = 3;
-constexpr std::size_t OUTPUT_BITS = 4;
 constexpr std::size_t INPUT_SHARES_BITS = INPUT_BITS * INPUT_SHARES;
 constexpr std::size_t OUTPUT_SHARES_BITS = OUTPUT_BITS * OUTPUT_SHARES;
 constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS * INPUT_SHARES);
@@ -22,10 +22,11 @@ typedef BooleanFunction<INPUT_SIZE> BlnFunction;
 typedef std::array<std::bitset<INPUT_SHARES_BITS>, OUTPUT_SHARES> CorrectionFunction;
 typedef std::vector<CorrectionFunction> VecCorrectionFunction;
 typedef std::bitset<INPUT_BITS> InputBitArray;
-typedef std::bitset<INPUT_SHARES * INPUT_BITS> SharedInputBitArray;
+typedef std::bitset<INPUT_SHARES_BITS> SharedInputBitArray;
 
 std::vector<std::bitset<OUTPUT_SIZE>> globalTruthTable(INPUT_SIZE,0);
 std::vector<std::vector<std::size_t>> globalValidSharesTable;
+std::vector<std::bitset<INPUT_SHARES_BITS>> globalDependence;
 
 struct Indices {
     std::vector<std::size_t> indices;
@@ -62,10 +63,14 @@ bool operator<(const Indices& lhs, const Indices& rhs) {
 /**
  * @return true if every (share)th share of every input is zero, false otherwise
  */
-bool areSharesZero(const std::bitset<INPUT_SHARES_BITS>& bits, std::size_t share) {
+bool areSharesZero(const std::bitset<INPUT_SHARES_BITS>& bits, std::size_t share, int outputIndex) {
     for(std::size_t i = share; i < bits.size(); i += INPUT_SHARES) {
+        std::cout<<globalDependence[outputIndex]<<std::endl;
+        std::cout<<i<<std::endl;
         if(bits[i]) 
             return false;
+        //if(globalDependence[outputIndex][i])
+            //return false;
     }
     return true;
 }
@@ -109,7 +114,7 @@ void addToTruthTable(std::bitset<INPUT_SHARES_BITS> correction_term) {
  * @warning this doesn't work for more than 8 * sizeof(int) input variables.
  */
 std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
-    const BlnFunction& f2, const BlnFunction& f3) {
+    const BlnFunction& f2, const BlnFunction& f3, int outputIndex) {
 
     auto futureSpectrum1 = std::async(
         std::launch::async, [&f1] { return f1.walshHadamardTransform(); }
@@ -129,17 +134,17 @@ std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
 
     for(std::size_t i = 0; i < spectrum1.size(); ++i) {
         std::bitset<INPUT_SHARES_BITS> bits_i(i);
-        if(!areSharesZero(bits_i, 0) || spectrum1[i] != 0 || !hammingWeightConstraint(bits_i))
+        if(!areSharesZero(bits_i, 0, outputIndex) || spectrum1[i] != 0 || !hammingWeightConstraint(bits_i))
             continue;
 
         for(std::size_t j = 0; j < spectrum2.size(); ++j) {
             std::bitset<INPUT_SHARES_BITS> bits_j(j);
-            if(!areSharesZero(bits_j, 1) || spectrum2[j] != 0 || !hammingWeightConstraint(bits_j))
+            if(!areSharesZero(bits_j, 1, outputIndex) || spectrum2[j] != 0 || !hammingWeightConstraint(bits_j))
                 continue;
             
             std::bitset<INPUT_SHARES_BITS> bits_l = bits_i ^ bits_j;
             std::size_t l = bits_l.to_ulong();
-            if(!areSharesZero(bits_l, 2) || spectrum3[l] != 0 || !hammingWeightConstraint(bits_l))
+            if(!areSharesZero(bits_l, 2, outputIndex) || spectrum3[l] != 0 || !hammingWeightConstraint(bits_l))
                 continue;
             CorrectionFunction cf {
                 bits_i,
@@ -169,7 +174,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> buildCorrectionTerms(
         correctionTerms[ind] = getLinearCorrections(
             realization[i][0],
             realization[i][1],
-            realization[i][2]
+            realization[i][2], i
         );
         std::cout << "Collected " << correctionTerms[ind].size()
                   << " linear correction terms for indices " << i << std::endl;
@@ -698,7 +703,7 @@ void makeUniform(
 //    return result;
 //}
 
-std::vector<std::vector<BlnFunction>> createTruthTable(std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>& functions, std::bitset<OUTPUT_SHARES_BITS>& constant_bits, std::vector<std::bitset<INPUT_SHARES_BITS>>& linear_bits) {
+std::vector<std::vector<BlnFunction>> createTruthTable(std::bitset<OUTPUT_SHARES_BITS>& constant_bits, std::vector<std::bitset<INPUT_SHARES_BITS>>& linear_bits,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>& functions) {
     std::vector<std::vector<BlnFunction>> truthTables;
     std::vector<BlnFunction> tempTable;
     for (std::size_t i = 0;i<functions.size();i++) {
@@ -728,6 +733,28 @@ std::vector<std::vector<BlnFunction>> createTruthTable(std::vector<std::vector<s
         }
     }
     return truthTables;
+}
+
+void getDependence(std::vector<std::bitset<INPUT_SHARES_BITS>>& linear_bits,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>& functions) {
+    std::vector<std::bitset<INPUT_SHARES_BITS>> dependence;
+    for (std::size_t i=0;i<OUTPUT_SHARES_BITS;i++) {
+        std::bitset<INPUT_SHARES_BITS> temp;
+        for (std::size_t j=0;j<INPUT_SHARES_BITS;j++) {
+            temp[j] = linear_bits[i][j];
+        }
+        dependence.push_back(temp);
+    }
+    for (std::size_t i=0;i<OUTPUT_SHARES_BITS;i++) {
+        for (std::size_t j=0;j<INPUT_SHARES_BITS;j++) {
+            for (std::size_t k=0;k<INPUT_SHARES_BITS;k++) {
+                dependence[i][j] = functions[i][j][k] | dependence[i][j];
+            }
+            for (std::size_t k=0;k<INPUT_SHARES_BITS;k++) {
+                dependence[i][j] = functions[i][k][j] | dependence[i][j];
+            }
+        }
+    }
+    globalDependence = dependence;
 }
 
 std::vector<std::vector<BlnFunction>> readRealization(const std::string& filename)
@@ -761,9 +788,10 @@ std::vector<std::vector<BlnFunction>> readRealization(const std::string& filenam
     }
     if(nb_so_far)
         std::cout << "Warning: missing shares for last component." << std::endl;
-    result = createTruthTable(functions, constant_bits, linear_bits);
+    result = createTruthTable(constant_bits,linear_bits,functions);
     std::cout << "Read realization with " << result.size() << " components."
               << std::endl;
+    getDependence(linear_bits,functions);
     return result;
 }
 
@@ -785,11 +813,11 @@ int main(int argc, char *argv[])
 //    }
 //    
 //    std::cout << "Reading realization..." << std::endl;
-    auto realization = readRealization("new_format_perm.in");
+    auto realization = readRealization("input/new_format_perm.in");
     std::size_t nb_inputs = INPUT_BITS;
     createGlobalSharingTable();
     makeUniform(
-        "gf4", buildCorrectionTerms(realization),
+        "output", buildCorrectionTerms(realization),
         realization, nb_inputs
     ); 
     
