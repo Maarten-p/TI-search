@@ -49,8 +49,17 @@ bool ANFToUnsharedInput(const int p[N]) {
     unsharedToSharedInput(constant_bits,linear_bits,quadratic_bits); 
 }
 
-bool unsharedToSharedInput(std::bitset<INPUT_BITS> constant_bits, std::vector<std::bitset<INPUT_BITS>> linear_bits, std::vector<std::vector<std::bitset<INPUT_BITS>>> quadratic_bits) {
-    return 0;
+bool unsharedToSharedInput(std::bitset<INPUT_BITS> constant_bits_old, std::vector<std::bitset<INPUT_BITS>> linear_bits_old, std::vector<std::vector<std::bitset<INPUT_BITS>>> quadratic_bits_old) {
+    std::bitset<INPUT_SHARED_BITS> constant_bits;
+    std::vector<std::bitset<INPUT_SHARED_BITS>> linear_bits;
+    std::vector<std::vector<std::bitset<INPUT_SHARED_BITS>>> quadratic_bits;
+    for(std::size_t i=0;i<constant_bits.size();i++) {
+        constant_bits[3*i] = constant_bits_old[i];
+        constant_bits[3*i+1] = constant_bits_old[i];
+        constant_bits[3*i+2] = constant_bits_old[i];
+    }
+    for(std::size_t i=0;i<linear_bits_old.size();i++) {
+    }
 }
 
 
