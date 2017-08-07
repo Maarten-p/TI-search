@@ -1,0 +1,31 @@
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+
+
+# NetBeans specific #
+nbproject/
+build/
+nbbuild/
+dist/
+nbdist/
+nbactions.xml
+configurations.xml
+project.xml
+nb-configuration.xml
+
+# Class Files #
+*.class
+
+# Package Files #
+*.jar
+*.war
+*.ear
+
+
