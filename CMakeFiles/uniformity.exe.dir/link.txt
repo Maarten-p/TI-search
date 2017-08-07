@@ -1,1 +1,0 @@
-/usr/lib64/ccache/g++   -std=c++11 -O3 -g3 -gdwarf-2    CMakeFiles/uniformity.exe.dir/main.cpp.o  -o uniformity.exe -rdynamic -lpthread 

@@ -10,7 +10,7 @@ CTestTestfile.cmake
 
 
 # NetBeans specific #
-nbproject/
+nbproject
 build/
 nbbuild/
 dist/
