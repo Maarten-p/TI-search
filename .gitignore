@@ -28,4 +28,10 @@ nb-configuration.xml
 *.war
 *.ear
 
+main.gcno
+main.cpp.gcda
+main.cpp.gcno
+gmon.out
+callgrind.out.*
+analysis*
 
