@@ -31,7 +31,8 @@ nb-configuration.xml
 main.gcno
 main.cpp.gcda
 main.cpp.gcno
-gmon.out
 callgrind.out.*
 analysis*
-
+gf4.in
+*.out
+output
