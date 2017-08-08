@@ -10,8 +10,8 @@
 constexpr std::size_t MAX_THREADS = 8;
 constexpr std::size_t MAX_HAMMING_WEIGHT = 2;
 constexpr std::size_t MAX_HAMMING_WEIGHT_TOTAL = 4;
-constexpr std::size_t INPUT_BITS = 4;
-constexpr std::size_t OUTPUT_BITS = 4;
+constexpr std::size_t INPUT_BITS = 5;
+constexpr std::size_t OUTPUT_BITS = 5;
 constexpr std::size_t INPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_SHARES = 3;
 constexpr std::size_t INPUT_SHARES_BITS = INPUT_BITS * INPUT_SHARES;
@@ -87,20 +87,6 @@ bool totalHammingWeightConstraint(const std::bitset<INPUT_SHARES_BITS> bits1, co
     return (bits1.count()+bits2.count()+bits3.count()) <= MAX_HAMMING_WEIGHT_TOTAL;
 }
 
-BlnFunction truthTable1(const std::bitset<INPUT_SHARES_BITS>& correction_term, BlnFunction origin) {
-    BlnFunction::BitArray truthTable = origin.getTruthTable();
-    for (std::size_t j = 0;j<INPUT_SHARES_SIZE;j++) {
-        std::bitset<INPUT_SHARES_BITS> bits(j);
-        bool result = 0;
-        std::bitset<INPUT_SHARES_BITS> im_result = bits & correction_term;
-        for (std::size_t k = 0; k<INPUT_SHARES_BITS;k++) {
-            result ^= im_result[k];
-        }
-        truthTable[j] = truthTable[j] ^ result;
-    }
-    return BlnFunction(truthTable);
-}
-
 void addToTruthTable(std::bitset<INPUT_SHARES_BITS> correction_term) {
     BlnFunction::BitArray truthTable;
     for (std::size_t j = 0;j<INPUT_SHARES_SIZE;j++) {
@@ -140,13 +126,13 @@ std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
 
     std::vector<VecCorrectionFunction> solutions;
 
-    for(std::size_t i = 0; i < spectrum1.size(); ++i) {
+    for(std::size_t i = 0; i < INPUT_SHARES_SIZE; ++i) {
         std::bitset<INPUT_SHARES_BITS> bits_i(i);
         if(!areSharesZero(bits_i, 0, outputIndex*3) || spectrum1[i] != 0 || !hammingWeightConstraint(bits_i))
             continue;
 
             
-        for(std::size_t j = 0; j < spectrum2.size(); ++j) {
+        for(std::size_t j = 0; j < INPUT_SHARES_SIZE; ++j) {
             std::bitset<INPUT_SHARES_BITS> bits_j(j);
             if(!areSharesZero(bits_j, 1, outputIndex*3+1) || spectrum2[j] != 0 || !hammingWeightConstraint(bits_j))
                 continue;
@@ -220,40 +206,6 @@ bool canAddIndices(const std::map<Indices, std::vector<VecCorrectionFunction>>& 
             return false;
     }
     return true;
-}
-
-bool shouldAddCorrection(const std::map<Indices, std::vector<VecCorrectionFunction>>& functions,
-    const Indices& ind, const VecCorrectionFunction& correction) {
-
-    for(std::size_t i = 2; i < ind.indices.size(); ++i) {
-        bool is_found = false;
-        const Indices ind_part = ind.without(i);
-        VecCorrectionFunction correction_part(
-            correction.begin(), correction.begin() + i
-        );
-        correction_part.insert(
-            correction_part.end(),
-            correction.begin() + i, correction.end()
-        );
-        for(const auto& vec : functions.at(ind_part)) {
-            bool all_equal = true;
-            for(std::size_t j : ind_part.indices) {
-                if(vec[j] != correction_part[j]) {
-                    all_equal = false;
-                    break;
-                }
-            }
-            if(all_equal) {
-                is_found = true;
-                break;
-            }
-        }
-
-        if(!is_found)
-            return false;
-    }
-    return true;
-
 }
 
 struct Comparer {
@@ -340,8 +292,8 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
         if(level==2) {
             for(const auto& correction1 : functions.at(ind_no_first)) {
                 for(const auto& correction2 : functions.at(ind_no_second)) {
-                    //int v1 = rand() % 5; 
-                    //if (v1 == 1) {
+                    int v1 = rand() % 40; 
+                    if (v1 == 1) {
                     VecCorrectionFunction correction = correction2;
                     correction.insert(
                         correction.end(), correction1.begin(), correction1.end()
@@ -349,20 +301,12 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
                     if(!result.count(ind))
                         result[ind] = std::vector<VecCorrectionFunction>();
                     result[ind].push_back(correction);
-                    //}
+                    }
                 }
             }
         }
   
         else {
-//            std::vector<int> common_indices;
-//            std::set_intersection(ind_no_first.indices.begin(), ind_no_first.indices.end(),
-//                          ind_no_second.indices.begin(), ind_no_second.indices.end(),
-//                          std::back_inserter(common_indices));
-//            if (common_indices.size()<level-2)
-//                continue;
-//            int no_first_indexes = findUncommonIndex(ind_no_first.indices, common_indices);
-//            std::vector<int> no_second_indexes = findUncommonIndex(ind_no_second.indices, common_indices);
             std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> possibilities1 = getMap(functions.at(ind_no_first));
             std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> possibilities2 = getMap(functions.at(ind_no_second));
             if(!result.count(ind))
@@ -403,63 +347,6 @@ std::size_t countCorrectionFunctions(
     return total_count;
 }
 
-template <int n>
-std::vector<std::bitset<n>> getNSharing(bool bit) {
-    std::vector<std::bitset<n>> result;
-    for (int i=0; i<pow(2,n);++i) {
-        std::bitset<n> input(i);
-        bool checksum = false;
-        for (bool current_bit : input) {
-            checksum ^= current_bit;
-        }
-        if (bit==checksum) {
-            result.push_back(input);
-        }
-    }
-}
-
-std::vector<std::bitset<3>> get3Sharing(bool bit)
-{
-    std::vector<std::bitset<3>> result;
-    std::bitset<3> current;
-    for (bool b1 : { false, true }) {
-        current[0] = b1;
-        for (bool b2 : { false, true }) {
-            current[1] = b2;
-            current[2] = b1 ^ b2 ^ bit;
-            result.push_back(current);
-        }
-    }
-    return result;
-}
-
-//template <int shares, int input>
-//std::vector<std::bitset<shares*(input+1)> getCombinations(std::vector<std::bitset<shares*input>> oldSharings, std::vector<std::bitset<shares> newSharings) {
-//    std::vector<std::bitset<shares*(input+1)> output;
-//    for (std::bitset<shares*input> combination:oldSharings) {
-//        for (std::bitset<shares> newcombination:newSharings) {
-//            output.push_back(bitset<16> result(combination.to_ulong() * 0x100 + newcombination.to_ulong());)
-//        }
-//    }
-//}
-//std::vector<SharedInputBitArray> getSharingsForInput(const InputBitArray& input_bits)
-//{
-//    std::vector<SharedInputBitArray> result(4,0);
-//    for(std::size_t i = 0; i < input_bits.size(); ++i) {
-//        for (sharedArray : result) {
-//            
-//        }
-//        input_bits.size()/ (2*(i+1))
-//        const std::size_t k = INPUT_SHARES * i;
-//        std::vector<std::bitset<INPUT_SHARES>> possible_sharings = getNSharing<INPUT_SHARES>(input_bits[i]);
-//        for(std::size_t j = 0; j < possible_sharings.size(); ++j)  {
-//            result[j][k] = possible_sharings[j][0];
-//            result[j][k+1] = possible_sharings[j][1];
-//            result[j][k+2] = possible_sharings[j][2];
-//            }
-//    }
-//    return result;
-//}
 
 bool isCorrectSharing(const InputBitArray& input, const SharedInputBitArray& sharedInput) {
     for (std::size_t i = 0; i<INPUT_BITS;i++) {
@@ -476,11 +363,10 @@ bool isCorrectSharing(const InputBitArray& input, const SharedInputBitArray& sha
 }
 
 void createGlobalSharingTable() {
-    const std::size_t INPUT_SHARES_SIZE_no_shares = std::pow(2, INPUT_BITS);
-    for(std::size_t i = 0; i < INPUT_SHARES_SIZE_no_shares; ++i) {
+    for(std::size_t i = 0; i < INPUT_SIZE; ++i) {
         InputBitArray input(i); 
         std::vector<std::size_t> allShares;
-        for(std::size_t j = 0; j < INPUT_SIZE; ++j) {
+        for(std::size_t j = 0; j < INPUT_SHARES_SIZE; ++j) {
             SharedInputBitArray shared_input(j);
             if (isCorrectSharing(input,shared_input)) {
                 allShares.push_back(j);
@@ -492,16 +378,16 @@ void createGlobalSharingTable() {
 
 
 bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
-    std::size_t nb_input_variables, const std::size_t level) {
+    std::size_t nb_input_variables) {
     const std::size_t expected_count = std::pow(
-        2, 2 * nb_input_variables - 2 * level
+        2, 2 * nb_input_variables - 2 * components.size()
 );
     //int test2;
     std::vector<std::vector<std::size_t>> counts(INPUT_SIZE, std::vector<std::size_t>(OUTPUT_SHARES_SIZE,0));
     for(std::size_t i = 0; i < INPUT_SIZE; ++i) {
         InputBitArray input(i); 
         for(std::size_t validShare : globalValidSharesTable[i]) {
-            std::bitset<OUTPUT_BITS*OUTPUT_SHARES> outputs;
+            std::bitset<OUTPUT_SHARES_BITS> outputs;
             for(std::size_t k = 0; k < components.size(); ++k) {
                 for (std::size_t l = 0; l < OUTPUT_SHARES; ++l) {
                     outputs[k*OUTPUT_SHARES+l] = components[k][l][validShare];
@@ -514,21 +400,16 @@ bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
             }
         }
     }
+//    for(std::size_t i = 0; i < INPUT_SIZE; ++i) {
+//        for (std::size_t j = 0; j < OUTPUT_SHARES_SIZE; ++j) {
+//            if (counts[i][j] != 0 && counts[i][j] != expected_count) {
+//                std::cout << "Sanity check failed" << std::endl;
+//                std::cout << counts[i][j] << std::endl;
+//                std::cout << expected_count << std::endl;
+//            } 
+//        }
+//    }
     return true;
-}
-
-
-
-BlnFunction truthTable2(const std::bitset<INPUT_SHARES_BITS>& correction_term, BlnFunction origin) {
-    BlnFunction::BitArray test = origin.getTruthTable();
-    for (std::size_t i = 0;i<INPUT_SHARES_BITS;i++) {
-        if (correction_term[i]) {
-            for (std::size_t j = 0;j<INPUT_SHARES_SIZE;j+std::pow(2,i)) {
-                test[j] = test[j]^1;
-            }
-        }
-    }
-    return BlnFunction(test);
 }
 
 typedef std::vector<VecCorrectionFunction>::const_iterator FunctionIter;
@@ -565,14 +446,14 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
             ++i_corrected;
         }
 
-        if(checkUniformity(corrected_realization, nb_input_variables, level)) {
+        if(checkUniformity(corrected_realization, nb_input_variables)) {
             ++nb_found;
             good_correction_functions.push_back(*it);
             //std::cout << "Found " << nb_found << " of " << nb_done << " correction functions."
             //   << std::endl;
         }
         ++nb_done;
-        if (nb_done % 10000 == 0)
+        if (nb_done % 100 == 0)
             std::cout << nb_done << std::endl;
     }
     return good_correction_functions;
@@ -591,10 +472,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
 
     std::map<Indices, std::vector<VecCorrectionFunction>> filtered_functions;
     
-    if (checkUniformity(realization,nb_input_variables,level)) {
-        std::cout << "already uniform" << std::endl;
-    }
-        
+ 
     // Produce batches for each set of indices
     for(const auto& pair : functions) {
         std::size_t batch_nb = 0;
@@ -651,7 +529,11 @@ void makeUniform(
     std::size_t nb_input_variables) {
 
     std::size_t level = 2;
-
+    if (checkUniformity(realization,nb_input_variables)) {
+        std::cout << "already uniform" << std::endl;
+        return;
+    }
+       
     while(level <= realization.size() && !functions.empty()) {
         std::cout << "Combining " << countCorrectionFunctions(functions)
                   << " correction functions for level " << level << '.'
