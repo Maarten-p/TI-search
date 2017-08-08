@@ -8,24 +8,27 @@
 #include "BooleanFunction.h" 
 
 constexpr std::size_t MAX_THREADS = 8;
-constexpr std::size_t MAX_HAMMING_WEIGHT = 2;;
-constexpr std::size_t MAX_HAMMING_WEIGHT_TOTAL = 4;
+constexpr std::size_t MAX_HAMMING_WEIGHT = 10;
+constexpr std::size_t MAX_HAMMING_WEIGHT_TOTAL = 30;
 constexpr std::size_t INPUT_BITS = 4;
 constexpr std::size_t OUTPUT_BITS = 4;
 constexpr std::size_t INPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_SHARES = 3;
 constexpr std::size_t INPUT_SHARES_BITS = INPUT_BITS * INPUT_SHARES;
 constexpr std::size_t OUTPUT_SHARES_BITS = OUTPUT_BITS * OUTPUT_SHARES;
-constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS * INPUT_SHARES);
-constexpr std::size_t OUTPUT_SIZE = std::pow(2, OUTPUT_BITS * OUTPUT_SHARES);
+constexpr std::size_t INPUT_SHARES_SIZE = std::pow(2, INPUT_BITS * INPUT_SHARES);
+constexpr std::size_t OUTPUT_SHARES_SIZE = std::pow(2, OUTPUT_BITS * OUTPUT_SHARES);
+constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS);
+constexpr std::size_t OUTPUT_SIZE = std::pow(2, OUTPUT_BITS);
 
-typedef BooleanFunction<INPUT_SIZE> BlnFunction;
+
+typedef BooleanFunction<INPUT_SHARES_SIZE> BlnFunction;
 typedef std::array<std::bitset<INPUT_SHARES_BITS>, OUTPUT_SHARES> CorrectionFunction;
 typedef std::vector<CorrectionFunction> VecCorrectionFunction;
 typedef std::bitset<INPUT_BITS> InputBitArray;
 typedef std::bitset<INPUT_SHARES_BITS> SharedInputBitArray;
 
-std::vector<std::bitset<OUTPUT_SIZE>> globalTruthTable(INPUT_SIZE,0);
+std::vector<std::bitset<OUTPUT_SHARES_SIZE>> globalTruthTable(INPUT_SHARES_SIZE,0);
 std::vector<std::vector<std::size_t>> globalValidSharesTable;
 std::vector<std::bitset<INPUT_SHARES_BITS>> globalDependence;
 
@@ -66,12 +69,12 @@ bool operator<(const Indices& lhs, const Indices& rhs) {
  */
 bool areSharesZero(const std::bitset<INPUT_SHARES_BITS>& bits, std::size_t share, int outputIndex) {
     for(std::size_t i = share; i < bits.size(); i += INPUT_SHARES) {
-        std::cout<<globalDependence[outputIndex]<<std::endl;
-        std::cout<<i<<std::endl;
+        //std::cout<<globalDependence[outputIndex]<<std::endl;
+        //std::cout<<i<<std::endl;
         if(bits[i]) 
             return false;
-        //if(globalDependence[outputIndex][i])
-            //return false;
+        if(globalDependence[outputIndex][i])
+            return false;
     }
     return true;
 }
@@ -86,7 +89,7 @@ bool totalHammingWeightConstraint(const std::bitset<INPUT_SHARES_BITS> bits1, co
 
 BlnFunction truthTable1(const std::bitset<INPUT_SHARES_BITS>& correction_term, BlnFunction origin) {
     BlnFunction::BitArray truthTable = origin.getTruthTable();
-    for (std::size_t j = 0;j<INPUT_SIZE;j++) {
+    for (std::size_t j = 0;j<INPUT_SHARES_SIZE;j++) {
         std::bitset<INPUT_SHARES_BITS> bits(j);
         bool result = 0;
         std::bitset<INPUT_SHARES_BITS> im_result = bits & correction_term;
@@ -100,7 +103,7 @@ BlnFunction truthTable1(const std::bitset<INPUT_SHARES_BITS>& correction_term, B
 
 void addToTruthTable(std::bitset<INPUT_SHARES_BITS> correction_term) {
     BlnFunction::BitArray truthTable;
-    for (std::size_t j = 0;j<INPUT_SIZE;j++) {
+    for (std::size_t j = 0;j<INPUT_SHARES_SIZE;j++) {
         std::bitset<INPUT_SHARES_BITS> bits(j);
         bool result = 0;
         std::bitset<INPUT_SHARES_BITS> im_result = bits & correction_term;
@@ -472,8 +475,8 @@ bool isCorrectSharing(const InputBitArray& input, const SharedInputBitArray& sha
 }
 
 void createGlobalSharingTable() {
-    const std::size_t input_size_no_shares = std::pow(2, INPUT_BITS);
-    for(std::size_t i = 0; i < input_size_no_shares; ++i) {
+    const std::size_t INPUT_SHARES_SIZE_no_shares = std::pow(2, INPUT_BITS);
+    for(std::size_t i = 0; i < INPUT_SHARES_SIZE_no_shares; ++i) {
         InputBitArray input(i); 
         std::vector<std::size_t> allShares;
         for(std::size_t j = 0; j < INPUT_SIZE; ++j) {
@@ -488,16 +491,13 @@ void createGlobalSharingTable() {
 
 
 bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
-    std::size_t nb_input_variables, const std::size_t level)
-{
-    const std::size_t input_size = std::pow(2, INPUT_BITS);
-    const std::size_t shared_input_size = std::pow(2, INPUT_SHARES * INPUT_BITS);
+    std::size_t nb_input_variables, const std::size_t level) {
     const std::size_t expected_count = std::pow(
         2, 2 * nb_input_variables - 2 * level
 );
     //int test2;
-    std::vector<std::vector<std::size_t>> counts(input_size, std::vector<std::size_t>(OUTPUT_SIZE,0));
-    for(std::size_t i = 0; i < input_size; ++i) {
+    std::vector<std::vector<std::size_t>> counts(INPUT_SIZE, std::vector<std::size_t>(OUTPUT_SHARES_SIZE,0));
+    for(std::size_t i = 0; i < INPUT_SIZE; ++i) {
         InputBitArray input(i); 
         for(std::size_t validShare : globalValidSharesTable[i]) {
             std::bitset<OUTPUT_BITS*OUTPUT_SHARES> outputs;
@@ -522,7 +522,7 @@ BlnFunction truthTable2(const std::bitset<INPUT_SHARES_BITS>& correction_term, B
     BlnFunction::BitArray test = origin.getTruthTable();
     for (std::size_t i = 0;i<INPUT_SHARES_BITS;i++) {
         if (correction_term[i]) {
-            for (std::size_t j = 0;j<INPUT_SIZE;j+std::pow(2,i)) {
+            for (std::size_t j = 0;j<INPUT_SHARES_SIZE;j+std::pow(2,i)) {
                 test[j] = test[j]^1;
             }
         }
@@ -708,26 +708,26 @@ void makeUniform(
 //    return result;
 //}
 
-std::vector<std::vector<BlnFunction>> createTruthTable(std::bitset<OUTPUT_SHARES_BITS>& constant_bits, std::vector<std::bitset<INPUT_SHARES_BITS>>& linear_bits,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>& functions) {
+std::vector<std::vector<BlnFunction>> createTruthTable(std::bitset<OUTPUT_SHARES_BITS>& constant_bits, std::vector<std::bitset<INPUT_SHARES_BITS>>& linear_bits,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>& quadratic_bits) {
     std::vector<std::vector<BlnFunction>> truthTables;
     std::vector<BlnFunction> tempTable;
-    for (std::size_t i = 0;i<functions.size();i++) {
-        std::bitset<INPUT_SIZE> truthTable;
-        for (std::size_t j = 0;j<INPUT_SIZE;j++) {
-            std::bitset<INPUT_SHARES*INPUT_BITS> bits(j);
+    for (std::size_t i = 0;i<INPUT_SHARES_BITS;i++) {
+        std::bitset<INPUT_SHARES_SIZE> truthTable;
+        for (std::size_t j = 0;j<INPUT_SHARES_SIZE;j++) {
+            std::bitset<INPUT_SHARES_BITS> bits(j);
             bool result = 0;
-            std::bitset<INPUT_SHARES*INPUT_BITS> im_result;
-            for (std::size_t k = 0; k<INPUT_SHARES*INPUT_BITS;k++) {
+            std::bitset<INPUT_SHARES_BITS> im_result;
+            for (std::size_t k = 0; k<INPUT_SHARES_BITS;k++) {
                 im_result[k] = 0;
-                for (std::size_t l = 0; l<INPUT_SHARES*INPUT_BITS;l++) {
-                    im_result[k] = im_result[k] ^ (functions[i][k][l] ^ bits[l]);
+                for (std::size_t l = 0; l<INPUT_SHARES_BITS;l++) {
+                    im_result[k] = im_result[k] ^ (quadratic_bits[i][k][l] & bits[l] & bits[k]);
                 }
             }
-            for (std::size_t k = 0; k<INPUT_SHARES*INPUT_BITS;k++) {
-                result ^= bits[k] ^ im_result[k];
+            for (std::size_t k = 0; k<INPUT_SHARES_BITS;k++) {
+                result ^= im_result[k];
             }
-            for (std::size_t k = 0; k<INPUT_SHARES*INPUT_BITS;k++) {
-                result = result ^ linear_bits[i][k];
+            for (std::size_t k = 0; k<INPUT_SHARES_BITS;k++) {
+                result = result ^ (linear_bits[i][k] & bits[k]);
             }
             truthTable[j] = result ^ constant_bits[i];
         }
@@ -740,67 +740,122 @@ std::vector<std::vector<BlnFunction>> createTruthTable(std::bitset<OUTPUT_SHARES
     return truthTables;
 }
 
-void getDependence(std::vector<std::bitset<INPUT_SHARES_BITS>>& linear_bits,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>& functions) {
+void getDependence(std::vector<std::bitset<INPUT_SHARES_BITS>>& linear_bits,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>& quadratic_bits) {
     std::vector<std::bitset<INPUT_SHARES_BITS>> dependence;
-    for (std::size_t i=0;i<OUTPUT_SHARES_BITS;i++) {
+    for (std::size_t i=0;i<INPUT_SHARES_BITS;i++) {
         std::bitset<INPUT_SHARES_BITS> temp;
         for (std::size_t j=0;j<INPUT_SHARES_BITS;j++) {
             temp[j] = linear_bits[i][j];
         }
         dependence.push_back(temp);
     }
-    for (std::size_t i=0;i<OUTPUT_SHARES_BITS;i++) {
+    for (std::size_t i=0;i<INPUT_SHARES_BITS;i++) {
         for (std::size_t j=0;j<INPUT_SHARES_BITS;j++) {
             for (std::size_t k=0;k<INPUT_SHARES_BITS;k++) {
-                dependence[i][j] = functions[i][j][k] | dependence[i][j];
+                dependence[i][j] = quadratic_bits[i][j][k] | dependence[i][j];
             }
             for (std::size_t k=0;k<INPUT_SHARES_BITS;k++) {
-                dependence[i][j] = functions[i][k][j] | dependence[i][j];
+                dependence[i][j] = quadratic_bits[i][k][j] | dependence[i][j];
             }
         }
     }
     globalDependence = dependence;
 }
 
-std::vector<std::vector<BlnFunction>> readRealization(const std::string& filename)
-{
-    std::vector<std::vector<BlnFunction>> result;
 
-    std::ifstream ifs(filename);
 
-    std::string line;
-    std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>> functions;
-    std::size_t nb_so_far = 0;
-    std::getline(ifs, line);
-    std::bitset<OUTPUT_SHARES_BITS> constant_bits(line);
-    std::vector<std::bitset<INPUT_SHARES_BITS>> linear_bits;
-    for (std::size_t j=0;j<OUTPUT_SHARES_BITS;j++) {
-        std::getline(ifs,line);
-        linear_bits.push_back(std::bitset<INPUT_SHARES_BITS>(line));
-    }
-    std::vector<std::bitset<INPUT_SHARES_BITS>> function;
-    while(std::getline(ifs, line)) {
-        if(line.size() != INPUT_SHARES_BITS)
-            std::cout << "Warning: incorrect input size given, got " << line.size()
-                      << " expecting " << INPUT_SHARES_BITS << '.' << std::endl;
-        function.push_back(std::bitset<INPUT_SHARES_BITS>(line));
-        nb_so_far++;
-        if(nb_so_far == INPUT_SHARES_BITS) {
-            functions.push_back(function);
-            function.clear();
-            nb_so_far = 0;
+int* getANF(const int f[INPUT_SIZE], int p[INPUT_SIZE]){
+    int i, j;
+    for (i = 0; i < INPUT_SIZE; ++i) p[i] = f[i];
+
+    for (i = 1; i < INPUT_SIZE; i <<= 1){
+        for (j = i; j < INPUT_SIZE; j = (j + 1) | i){
+            p[j] ^= p[j ^ i];
         }
     }
-    if(nb_so_far)
-        std::cout << "Warning: missing shares for last component." << std::endl;
-    result = createTruthTable(constant_bits,linear_bits,functions);
-    std::cout << "Read realization with " << result.size() << " components."
-              << std::endl;
-    getDependence(linear_bits,functions);
-    return result;
+    return p;
 }
 
+std::tuple<std::bitset<OUTPUT_SHARES_BITS>,std::vector<std::bitset<INPUT_SHARES_BITS>>,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>> unsharedToSharedInput(std::bitset<INPUT_BITS> constant_bits_old, std::vector<std::bitset<INPUT_BITS>> linear_bits_old, std::vector<std::vector<std::bitset<INPUT_BITS>>> quadratic_bits_old) {
+    std::bitset<INPUT_SHARES_BITS> constant_bits;
+    std::vector<std::bitset<INPUT_SHARES_BITS>> linear_bits(INPUT_SHARES_BITS,std::bitset<INPUT_SHARES_BITS>());
+    std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>> quadratic_bits(INPUT_SHARES_BITS, std::vector<std::bitset<INPUT_SHARES_BITS>>(INPUT_SHARES_BITS,std::bitset<INPUT_SHARES_BITS>()));
+    for(std::size_t i=0;i<constant_bits.size();i++) {
+        constant_bits[INPUT_SHARES*i] = constant_bits_old[i];
+    }
+    for(std::size_t i=0;i<linear_bits_old.size();i++) {
+        for(std::size_t j=0;j<INPUT_BITS;j++) {
+            for(std::size_t k=1;k<INPUT_SHARES;k++) {
+                linear_bits[INPUT_SHARES*i+(k-1)][INPUT_SHARES*j+k] = linear_bits_old[i][j];
+            }
+            linear_bits[INPUT_SHARES*i+INPUT_SHARES-1][INPUT_SHARES*j] = linear_bits_old[i][j];
+            //give second share to the first sharing function
+            //linear_bits[3*i][3*j+1] = linear_bits_old[i][j];
+            //give third share to the second sharing function
+            //linear_bits[3*i+1][3*j+2] = linear_bits_old[i][j];
+            //give first share to the third sharing function
+            //linear_bits[3*i+2][3*j] = linear_bits_old[i][j];
+        }
+    }
+    for(std::size_t i=0;i<quadratic_bits_old.size();i++) {
+        for(std::size_t j=0;j<INPUT_BITS;j++) {
+            for(std::size_t k=0;k<INPUT_BITS;k++) {
+                quadratic_bits[3*i][3*j+1][3*k+1] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i][3*j+2][3*k+1] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i][3*j+1][3*k+2] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i][3*j+2][3*k+2] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i+1][3*j][3*k] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i+1][3*j+2][3*k] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i+1][3*j][3*k+2] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i+2][3*j][3*k+1] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i+2][3*j+1][3*k] = quadratic_bits_old[i][j][k];
+            }
+        }
+    }
+    return std::make_tuple(constant_bits,linear_bits,quadratic_bits);
+}
 
+std::tuple<std::bitset<OUTPUT_BITS>,std::vector<std::bitset<INPUT_BITS>>,std::vector<std::vector<std::bitset<INPUT_BITS>>>> ANFToUnsharedInput(const int p[INPUT_SIZE]) {
+    
+    std::vector<std::vector<std::bitset<INPUT_BITS>>> quadratic_bits(INPUT_BITS, std::vector<std::bitset<INPUT_BITS>>(INPUT_BITS,std::bitset<INPUT_BITS>()));
+    std::bitset<OUTPUT_BITS> constant_bits;
+    std::vector<std::bitset<INPUT_BITS>> linear_bits(INPUT_BITS,std::bitset<INPUT_BITS>());
+    for (std::size_t i=0;i<OUTPUT_BITS;i++) {
+        constant_bits[i] = (p[0] >> i) & 1;
+    }
+    for (std::size_t i=0;i<INPUT_BITS;i++) {
+        for (std::size_t j=0;j<INPUT_BITS;j++) {
+            linear_bits[j][i] = (p[1 << i] >> j) & 1;
+            }
+    }
+    for (std::size_t i=1;i<INPUT_BITS;i++) {
+        for (std::size_t j=i;j<INPUT_BITS;j++) {
+            for (std::size_t k=0;k<INPUT_BITS;k++) {
+                quadratic_bits[k][i-1][j] = (p[(1<<j) + (1<<(i-1))] >> k) & 1;
+            }
+        }
+    }
+    return std::make_tuple(constant_bits,linear_bits,quadratic_bits); 
+}
+
+int* readTruthTable(const std::string& filename) {
+    int truthTable[INPUT_SIZE];
+    std::ifstream ifs(filename);
+    if (!ifs.is_open()) {
+        std::cout << "failed to open " << filename << '\n';
+        return nullptr;
+    }
+    std::string line;
+    int i = 0;
+    while(std::getline(ifs, line) && i<INPUT_SIZE) {
+        if(line.size() != INPUT_BITS)
+            std::cout << "Warning: incorrect input size given, got " << line.size()
+                      << " expecting " << INPUT_BITS << '.' << std::endl;
+        truthTable[i] = (int) std::bitset<INPUT_BITS>(line).to_ulong();
+        i++;
+    }
+    return truthTable;
+}
 
 int main(int argc, char *argv[])
 {
@@ -818,12 +873,20 @@ int main(int argc, char *argv[])
 //    }
 //    
 //    std::cout << "Reading realization..." << std::endl;
-    auto realization = readRealization("input/new_format_perm.in");
+    int* truthTable = readTruthTable("input/raw_input1.in");
+    if (truthTable==nullptr) {
+        return 1;
+    }
+    int p[INPUT_SIZE];
+    auto tuple = ANFToUnsharedInput(getANF(truthTable,p));
+    auto sharedTuple = unsharedToSharedInput(std::get<0>(tuple),std::get<1>(tuple),std::get<2>(tuple));
+    auto result = createTruthTable(std::get<0>(sharedTuple),std::get<1>(sharedTuple),std::get<2>(sharedTuple));
+    getDependence(std::get<1>(sharedTuple),std::get<2>(sharedTuple));
     std::size_t nb_inputs = INPUT_BITS;
     createGlobalSharingTable();
     makeUniform(
-        "output", buildCorrectionTerms(realization),
-        realization, nb_inputs
+        "output", buildCorrectionTerms(result),
+        result, nb_inputs
     ); 
     
     return 0;
