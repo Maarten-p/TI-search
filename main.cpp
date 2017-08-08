@@ -292,7 +292,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
         if(level==2) {
             for(const auto& correction1 : functions.at(ind_no_first)) {
                 for(const auto& correction2 : functions.at(ind_no_second)) {
-                    int v1 = rand() % 40; 
+                    int v1 = rand() % 30; 
                     if (v1 == 1) {
                     VecCorrectionFunction correction = correction2;
                     correction.insert(
