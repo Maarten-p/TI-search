@@ -8,8 +8,8 @@
 #include "BooleanFunction.h" 
 
 constexpr std::size_t MAX_THREADS = 8;
-constexpr std::size_t MAX_HAMMING_WEIGHT = 10;
-constexpr std::size_t MAX_HAMMING_WEIGHT_TOTAL = 30;
+constexpr std::size_t MAX_HAMMING_WEIGHT = 2;
+constexpr std::size_t MAX_HAMMING_WEIGHT_TOTAL = 4;
 constexpr std::size_t INPUT_BITS = 4;
 constexpr std::size_t OUTPUT_BITS = 4;
 constexpr std::size_t INPUT_SHARES = 3;
@@ -142,17 +142,18 @@ std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
 
     for(std::size_t i = 0; i < spectrum1.size(); ++i) {
         std::bitset<INPUT_SHARES_BITS> bits_i(i);
-        if(!areSharesZero(bits_i, 0, outputIndex) || spectrum1[i] != 0 || !hammingWeightConstraint(bits_i))
+        if(!areSharesZero(bits_i, 0, outputIndex*3) || spectrum1[i] != 0 || !hammingWeightConstraint(bits_i))
             continue;
 
+            
         for(std::size_t j = 0; j < spectrum2.size(); ++j) {
             std::bitset<INPUT_SHARES_BITS> bits_j(j);
-            if(!areSharesZero(bits_j, 1, outputIndex) || spectrum2[j] != 0 || !hammingWeightConstraint(bits_j))
+            if(!areSharesZero(bits_j, 1, outputIndex*3+1) || spectrum2[j] != 0 || !hammingWeightConstraint(bits_j))
                 continue;
             
             std::bitset<INPUT_SHARES_BITS> bits_l = bits_i ^ bits_j;
             std::size_t l = bits_l.to_ulong();
-            if(!areSharesZero(bits_l, 2, outputIndex) || spectrum3[l] != 0 || !hammingWeightConstraint(bits_l) || !totalHammingWeightConstraint(bits_i,bits_j,bits_l))
+            if(!areSharesZero(bits_l, 2, outputIndex*3+2) || spectrum3[l] != 0 || !hammingWeightConstraint(bits_l) || !totalHammingWeightConstraint(bits_i,bits_j,bits_l))
                 continue;
             CorrectionFunction cf {
                 bits_i,
