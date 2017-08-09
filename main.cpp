@@ -8,10 +8,10 @@
 #include "BooleanFunction.h" 
 
 constexpr std::size_t MAX_THREADS = 8;
-constexpr std::size_t MAX_HAMMING_WEIGHT = 2;
-constexpr std::size_t MAX_HAMMING_WEIGHT_TOTAL = 4;
-constexpr std::size_t INPUT_BITS = 5;
-constexpr std::size_t OUTPUT_BITS = 5;
+constexpr std::size_t MAX_HAMMING_WEIGHT = 1000;
+constexpr std::size_t MAX_HAMMING_WEIGHT_TOTAL = 110000;
+constexpr std::size_t INPUT_BITS = 4;
+constexpr std::size_t OUTPUT_BITS = 4;
 constexpr std::size_t INPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_SHARES = 3;
 constexpr std::size_t INPUT_SHARES_BITS = INPUT_BITS * INPUT_SHARES;
@@ -20,7 +20,7 @@ constexpr std::size_t INPUT_SHARES_SIZE = std::pow(2, INPUT_BITS * INPUT_SHARES)
 constexpr std::size_t OUTPUT_SHARES_SIZE = std::pow(2, OUTPUT_BITS * OUTPUT_SHARES);
 constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS);
 constexpr std::size_t OUTPUT_SIZE = std::pow(2, OUTPUT_BITS);
-
+constexpr bool CONTROL = false;
 
 typedef BooleanFunction<INPUT_SHARES_SIZE> BlnFunction;
 typedef std::array<std::bitset<INPUT_SHARES_BITS>, OUTPUT_SHARES> CorrectionFunction;
@@ -292,8 +292,8 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
         if(level==2) {
             for(const auto& correction1 : functions.at(ind_no_first)) {
                 for(const auto& correction2 : functions.at(ind_no_second)) {
-                    int v1 = rand() % 30; 
-                    if (v1 == 1) {
+                    //int v1 = rand() % 30; 
+                    //if (v1 == 1) {
                     VecCorrectionFunction correction = correction2;
                     correction.insert(
                         correction.end(), correction1.begin(), correction1.end()
@@ -301,7 +301,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
                     if(!result.count(ind))
                         result[ind] = std::vector<VecCorrectionFunction>();
                     result[ind].push_back(correction);
-                    }
+                    //}
                 }
             }
         }
@@ -421,7 +421,7 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
     const Indices& indices,
     FunctionIter begin, FunctionIter end,
     std::size_t batch_nb,
-        const std::size_t level) {
+        const std::size_t batch_size) {
 
     std::vector<VecCorrectionFunction> good_correction_functions;
 
@@ -453,8 +453,8 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
             //   << std::endl;
         }
         ++nb_done;
-        if (nb_done % 100 == 0)
-            std::cout << nb_done << std::endl;
+        if (nb_done % 10000 == 0)
+            std::cout << nb_done << " of " << batch_size << std::endl;
     }
     return good_correction_functions;
 
@@ -479,12 +479,12 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
         const std::size_t batch_size = pair.second.size() / MAX_THREADS;
         std::vector<std::future<std::vector<VecCorrectionFunction>>> results;
         auto it = pair.second.begin();
-        if(1) {
+        if(pair.second.size() > 2*MAX_THREADS) {
             for(; it < pair.second.end() - batch_size; it += batch_size) {
                 results.emplace_back(std::async(std::launch::async,
                     makeBatchUniformWith, directory, realization,
                     nb_input_variables, pair.first, it,
-                    it + batch_size, batch_nb, level
+                    it + batch_size, batch_nb, batch_size
                 ));
                 ++batch_nb;
             }
@@ -492,7 +492,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
             results.emplace_back(std::async(std::launch::async,
                 makeBatchUniformWith, directory, realization,
                 nb_input_variables, pair.first, it,
-                pair.second.end(), batch_nb, level
+                pair.second.end(), batch_nb, batch_size
             ));
 
             // Retrieve the results
@@ -512,7 +512,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
         else {
                 std::vector<VecCorrectionFunction> corrections = makeBatchUniformWith(directory, realization,
                     nb_input_variables, pair.first, it,
-                    pair.second.end(), batch_nb, level
+                    pair.second.end(), batch_nb, pair.second.size()
                 );
                 if(!corrections.empty() && !filtered_functions.count(pair.first))
                     filtered_functions[pair.first] = std::vector<VecCorrectionFunction>();
@@ -740,6 +740,22 @@ int* readTruthTable(const std::string& filename) {
     return truthTable;
 }
 
+std::vector<std::bitset<INPUT_SHARES_BITS>> readCandidate(const std::string& filename) {
+    
+    std::ifstream ifs(filename);
+    std::string line;
+    std::vector<std::bitset<INPUT_SHARES_BITS>> correctionFunction;
+    int i = 0;
+    while(std::getline(ifs, line) && i<INPUT_SHARES_BITS) {
+        if(line.size() != INPUT_SHARES_BITS)
+            std::cout << "Warning: incorrect input size given, got " << line.size()
+                      << " expecting " << INPUT_SHARES_BITS << '.' << std::endl;
+        correctionFunction.push_back(std::bitset<INPUT_SHARES_BITS>(line));
+        i++;
+    }
+    return correctionFunction;
+}
+
 int main(int argc, char *argv[])
 {
     
@@ -756,13 +772,47 @@ int main(int argc, char *argv[])
 //    }
 //    
 //    std::cout << "Reading realization..." << std::endl;
-    int* truthTable = readTruthTable("input/raw_input1.in");
+    int* truthTable = readTruthTable("input/raw_input_4_156.in");
     if (truthTable==nullptr) {
         return 1;
     }
     int p[INPUT_SIZE];
     auto tuple = ANFToUnsharedInput(getANF(truthTable,p));
     auto sharedTuple = unsharedToSharedInput(std::get<0>(tuple),std::get<1>(tuple),std::get<2>(tuple));
+    if(CONTROL) {
+        std::vector<std::bitset<INPUT_SHARES_BITS>> correctionTerm = readCandidate("control/correction.in");
+        for(std::size_t i=0;i<INPUT_SHARES_BITS;i++) {
+            for(std::size_t j=0;j<INPUT_SHARES_BITS;j++) {
+            correctionTerm[i][j] = std::get<1>(sharedTuple)[i][j] + correctionTerm[i][j];
+            }
+        }
+        auto result = createTruthTable(std::get<0>(sharedTuple),correctionTerm,std::get<2>(sharedTuple));
+        getDependence(correctionTerm,std::get<2>(sharedTuple));
+        for(std::size_t i=0;i<INPUT_SHARES_BITS;i++) {
+            bool first_bit = false;
+            bool second_bit = false;
+            bool third_bit = false;
+            for(std::size_t j = 0; j < INPUT_BITS; j += INPUT_SHARES) {
+                if(globalDependence[i][j]) {
+                    first_bit = true;
+                }
+                if(globalDependence[i][j+1]) {
+                    second_bit = true;
+                }
+                if(globalDependence[i][j+2]) {
+                    third_bit = true;
+                }
+            }
+            if (first_bit && second_bit && third_bit) {
+                std::cout << "non-uniformity not met for " << i << std::endl;
+            }
+            
+            std::cout << first_bit << second_bit << third_bit << std::endl;
+        }
+        createGlobalSharingTable();
+        std::cout << checkUniformity(result,INPUT_BITS) << std::endl;
+    }
+    else {
     auto result = createTruthTable(std::get<0>(sharedTuple),std::get<1>(sharedTuple),std::get<2>(sharedTuple));
     getDependence(std::get<1>(sharedTuple),std::get<2>(sharedTuple));
     std::size_t nb_inputs = INPUT_BITS;
@@ -771,6 +821,6 @@ int main(int argc, char *argv[])
         "output", buildCorrectionTerms(result),
         result, nb_inputs
     ); 
-    
+    }
     return 0;
 }
