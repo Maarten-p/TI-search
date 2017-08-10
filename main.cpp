@@ -47,15 +47,37 @@ typedef std::bitset<INPUT_BITS> InputBitArray;
 //One possible combination of shared inputs
 typedef std::bitset<INPUT_SHARES_BITS> SharedInputBitArray;
 
-//
+//Contains the shared truth table for every shared correction term that is used
+//The index of every unused shared correction terms stays at 0
+//It's faster to have this table precomputed than to compute each element on the fly when it's needed
 std::vector<std::bitset<OUTPUT_SHARES_SIZE>> globalTruthTable(INPUT_SHARES_SIZE,0);
+
+//Contains all valid sharings for every possible input function
+//It's faster to have this table precomputed than to compute each element on the fly when it's needed
 std::vector<std::vector<std::size_t>> globalValidSharesTable;
+
+//Contains a bitset for each share of all output functions that measures on which input shares the function depends
+// 110010 -> f1 depends on X1,X2,Y2
+//Currently, each output function is so designed that its first share will only depend on the second and third shares of each input
+//The second share only depends on the first and third share of each input, and the third share only depends on the first and second share
+//This is used to satisfy the non-completeness constraint
 std::vector<std::bitset<INPUT_SHARES_BITS>> globalDependence;
+
+//The maximum hamming weight that each individual share of a correction term can have
+//This value is slowly raised in an iterative deepening matter
 int MAX_HAMMING_WEIGHT = 2;
+
+//The maximum hamming weight that the correction terms of all shares of an output together can have
+//This value is slowly raised in an iterative deepening matter
+//This limits the search space and gives solutions with a lower hamming weight
+//Which is less costly to implement on a chip
 int MAX_HAMMING_WEIGHT_TOTAL = 2;
+
+//A struct for the indices of possible combinations of correction terms for different outputs
 struct Indices {
     std::vector<std::size_t> indices;
 
+    //Removes one indice from the struct
     Indices without(std::size_t i) const {
         Indices ind;
         ind.indices = indices;
@@ -63,7 +85,7 @@ struct Indices {
         return ind;
     }
 };
-
+//redefines the << operator for a cleaner output
 std::ostream& operator<<(std::ostream& os, const Indices& ind)
 {
     os << '(';
@@ -72,6 +94,11 @@ std::ostream& operator<<(std::ostream& os, const Indices& ind)
     os << ')';
 }
 
+
+/**
+ * Defines a proper comparison function
+ * @return true of lhs is smaller than rhs, false otherwise
+ */
 bool operator<(const Indices& lhs, const Indices& rhs) {
     if(lhs.indices.size() < rhs.indices.size())
         return rhs < lhs; 
@@ -86,12 +113,11 @@ bool operator<(const Indices& lhs, const Indices& rhs) {
 }
 
 /**
- * @return true if every (share)th share of every input is zero, false otherwise
+ * @return true if every (share)th share of every input is zero and if every 
+ * (share)th share of the function for which the correction term is used is zero, false otherwise
  */
 bool areSharesZero(const std::bitset<INPUT_SHARES_BITS>& bits, std::size_t share, int outputIndex) {
     for(std::size_t i = share; i < bits.size(); i += INPUT_SHARES) {
-        //std::cout<<globalDependence[outputIndex]<<std::endl;
-        //std::cout<<i<<std::endl;
         if(bits[i]) 
             return false;
         if(globalDependence[outputIndex][i])
@@ -100,6 +126,7 @@ bool areSharesZero(const std::bitset<INPUT_SHARES_BITS>& bits, std::size_t share
     return true;
 }
 
+//check the MAX_HAMMING_WEIGHT(_TOTAL) comments for more information
 bool hammingWeightConstraint(const std::bitset<INPUT_SHARES_BITS> bits) {
     return bits.count() <= MAX_HAMMING_WEIGHT;
 }
@@ -108,6 +135,10 @@ bool totalHammingWeightConstraint(const std::bitset<INPUT_SHARES_BITS> bits1, co
     return (bits1.count()+bits2.count()+bits3.count()) <= MAX_HAMMING_WEIGHT_TOTAL;
 }
 
+/**
+ * Computes the truth table for the given correction term and add it to the global lookup table
+ * @param correction_term
+ */
 void addToTruthTable(std::bitset<INPUT_SHARES_BITS> correction_term) {
     BlnFunction::BitArray truthTable;
     for (std::size_t j = 0;j<INPUT_SHARES_SIZE;j++) {
@@ -123,6 +154,7 @@ void addToTruthTable(std::bitset<INPUT_SHARES_BITS> correction_term) {
 }
 /**
  * Finds linear correction terms for the sharing (f1, f2, f3).
+ * Also adds the correction terms to the global lookup table
  * @note f1, f2 and f3 are assumed to be non-reduced, but nevertheless
  *  noncomplete.
  * @note each VecCorrectionFunction is of size one
@@ -177,6 +209,11 @@ std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
     return solutions;
 }
 
+/**
+ * 
+ * @param realization
+ * @return 
+ */
 std::map<Indices, std::vector<VecCorrectionFunction>> buildCorrectionTerms(
     std::vector<std::vector<BlnFunction>>& realization)
 {
