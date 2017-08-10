@@ -8,10 +8,8 @@
 #include "BooleanFunction.h" 
 
 constexpr std::size_t MAX_THREADS = 8;
-constexpr std::size_t MAX_HAMMING_WEIGHT = 10000;
-constexpr std::size_t MAX_HAMMING_WEIGHT_TOTAL = 1001000;
-constexpr std::size_t INPUT_BITS = 4;
-constexpr std::size_t OUTPUT_BITS = 4;
+constexpr std::size_t INPUT_BITS = 5;
+constexpr std::size_t OUTPUT_BITS = 5;
 constexpr std::size_t INPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_SHARES = 3;
 constexpr std::size_t INPUT_SHARES_BITS = INPUT_BITS * INPUT_SHARES;
@@ -20,7 +18,6 @@ constexpr std::size_t INPUT_SHARES_SIZE = std::pow(2, INPUT_BITS * INPUT_SHARES)
 constexpr std::size_t OUTPUT_SHARES_SIZE = std::pow(2, OUTPUT_BITS * OUTPUT_SHARES);
 constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS);
 constexpr std::size_t OUTPUT_SIZE = std::pow(2, OUTPUT_BITS);
-constexpr bool CONTROL = false;
 
 typedef BooleanFunction<INPUT_SHARES_SIZE> BlnFunction;
 typedef std::array<std::bitset<INPUT_SHARES_BITS>, OUTPUT_SHARES> CorrectionFunction;
@@ -31,7 +28,8 @@ typedef std::bitset<INPUT_SHARES_BITS> SharedInputBitArray;
 std::vector<std::bitset<OUTPUT_SHARES_SIZE>> globalTruthTable(INPUT_SHARES_SIZE,0);
 std::vector<std::vector<std::size_t>> globalValidSharesTable;
 std::vector<std::bitset<INPUT_SHARES_BITS>> globalDependence;
-
+int MAX_HAMMING_WEIGHT = 2;
+int MAX_HAMMING_WEIGHT_TOTAL = 2;
 struct Indices {
     std::vector<std::size_t> indices;
 
@@ -520,7 +518,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
     return filtered_functions;
 }
 
-void makeUniform(
+bool makeUniform(
     const std::string& filename,
     std::map<Indices, std::vector<VecCorrectionFunction>> functions,
     const std::vector<std::vector<BlnFunction>> realization,
@@ -529,7 +527,7 @@ void makeUniform(
     std::size_t level = 2;
     if (checkUniformity(realization,nb_input_variables)) {
         std::cout << "already uniform" << std::endl;
-        return;
+        return true;
     }
        
     while(level <= realization.size() && !functions.empty()) {
@@ -559,6 +557,7 @@ void makeUniform(
     std::cout << functions.size() << std::endl;
     writeFunctions("output", filename, functions);
     std::cout << "Process stopped at level " << level << '.' << std::endl;
+    return (functions.size()!=0);
 }
 
 //std::vector<std::vector<BlnFunction>> readRealization(const std::string& filename)
@@ -777,8 +776,7 @@ void decimalToBinaryInputConvertor(const std::string& filename) {
     }
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     
 //    if(argc < 4) {
 //        std::cerr << "Usage: <number of inputs> <output directory> <filename>."
@@ -844,14 +842,20 @@ int main(int argc, char *argv[])
         std::cout << checkUniformity(result,INPUT_BITS) << std::endl;
     }
     else {
-    auto result = createTruthTable(std::get<0>(sharedTuple),std::get<1>(sharedTuple),std::get<2>(sharedTuple));
-    getDependence(std::get<1>(sharedTuple),std::get<2>(sharedTuple));
-    std::size_t nb_inputs = INPUT_BITS;
-    createGlobalSharingTable();
-    makeUniform(
-        "output", buildCorrectionTerms(result),
-        result, nb_inputs
-    ); 
+        auto result = createTruthTable(std::get<0>(sharedTuple),std::get<1>(sharedTuple),std::get<2>(sharedTuple));
+        getDependence(std::get<1>(sharedTuple),std::get<2>(sharedTuple));
+        std::size_t nb_inputs = INPUT_BITS;
+        createGlobalSharingTable();
+        bool solutionFound = false;
+        while(!solutionFound) {
+            makeUniform(
+                "output", buildCorrectionTerms(result),
+                result, nb_inputs
+            ); 
+            MAX_HAMMING_WEIGHT_TOTAL++;
+            if (MAX_HAMMING_WEIGHT_TOTAL> 3*MAX_HAMMING_WEIGHT)
+                MAX_HAMMING_WEIGHT++;
+        }
     }
     return 0;
 }
