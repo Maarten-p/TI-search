@@ -7,24 +7,47 @@
 #include <tuple>
 #include "BooleanFunction.h" 
 
+//The number of threads used
 constexpr std::size_t MAX_THREADS = 8;
+
+//The amount of bits in the unshared input/output
+//Currently does not support a different number of input and output bits
+//The program should find a solution in about 5 hours for 5 bits on a good computer
 constexpr std::size_t INPUT_BITS = 5;
 constexpr std::size_t OUTPUT_BITS = 5;
+
+//The program currently does NOT work for a different amount of shares
 constexpr std::size_t INPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_SHARES = 3;
+
+//The amount of bits in the shared input/output
 constexpr std::size_t INPUT_SHARES_BITS = INPUT_BITS * INPUT_SHARES;
 constexpr std::size_t OUTPUT_SHARES_BITS = OUTPUT_BITS * OUTPUT_SHARES;
-constexpr std::size_t INPUT_SHARES_SIZE = std::pow(2, INPUT_BITS * INPUT_SHARES);
-constexpr std::size_t OUTPUT_SHARES_SIZE = std::pow(2, OUTPUT_BITS * OUTPUT_SHARES);
+
+//the number of combinations possible of different unshared inputs/outputs
 constexpr std::size_t INPUT_SIZE = std::pow(2, INPUT_BITS);
 constexpr std::size_t OUTPUT_SIZE = std::pow(2, OUTPUT_BITS);
 
+//the number of combinations possible of different shared inputs/outputs
+constexpr std::size_t INPUT_SHARES_SIZE = std::pow(2, INPUT_SHARES_BITS);
+constexpr std::size_t OUTPUT_SHARES_SIZE = std::pow(2, OUTPUT_SHARES_BITS);
+
+//the truth table for one share of an output function
 typedef BooleanFunction<INPUT_SHARES_SIZE> BlnFunction;
+
+//The correction terms for one shared output function
 typedef std::array<std::bitset<INPUT_SHARES_BITS>, OUTPUT_SHARES> CorrectionFunction;
+
+//The correction terms for all shared outputs
 typedef std::vector<CorrectionFunction> VecCorrectionFunction;
+
+//One possible combination of unshared inputs
 typedef std::bitset<INPUT_BITS> InputBitArray;
+
+//One possible combination of shared inputs
 typedef std::bitset<INPUT_SHARES_BITS> SharedInputBitArray;
 
+//
 std::vector<std::bitset<OUTPUT_SHARES_SIZE>> globalTruthTable(INPUT_SHARES_SIZE,0);
 std::vector<std::vector<std::size_t>> globalValidSharesTable;
 std::vector<std::bitset<INPUT_SHARES_BITS>> globalDependence;
