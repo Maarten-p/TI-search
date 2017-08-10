@@ -8,10 +8,10 @@
 #include "BooleanFunction.h" 
 
 constexpr std::size_t MAX_THREADS = 8;
-constexpr std::size_t MAX_HAMMING_WEIGHT = 1000;
-constexpr std::size_t MAX_HAMMING_WEIGHT_TOTAL = 110000;
-constexpr std::size_t INPUT_BITS = 4;
-constexpr std::size_t OUTPUT_BITS = 4;
+constexpr std::size_t MAX_HAMMING_WEIGHT = 2;
+constexpr std::size_t MAX_HAMMING_WEIGHT_TOTAL = 4;
+constexpr std::size_t INPUT_BITS = 5;
+constexpr std::size_t OUTPUT_BITS = 5;
 constexpr std::size_t INPUT_SHARES = 3;
 constexpr std::size_t OUTPUT_SHARES = 3;
 constexpr std::size_t INPUT_SHARES_BITS = INPUT_BITS * INPUT_SHARES;
@@ -130,13 +130,11 @@ std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
         std::bitset<INPUT_SHARES_BITS> bits_i(i);
         if(!areSharesZero(bits_i, 0, outputIndex*3) || spectrum1[i] != 0 || !hammingWeightConstraint(bits_i))
             continue;
-
             
         for(std::size_t j = 0; j < INPUT_SHARES_SIZE; ++j) {
             std::bitset<INPUT_SHARES_BITS> bits_j(j);
             if(!areSharesZero(bits_j, 1, outputIndex*3+1) || spectrum2[j] != 0 || !hammingWeightConstraint(bits_j))
                 continue;
-            
             std::bitset<INPUT_SHARES_BITS> bits_l = bits_i ^ bits_j;
             std::size_t l = bits_l.to_ulong();
             if(!areSharesZero(bits_l, 2, outputIndex*3+2) || spectrum3[l] != 0 || !hammingWeightConstraint(bits_l) || !totalHammingWeightConstraint(bits_i,bits_j,bits_l))
@@ -453,8 +451,8 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
             //   << std::endl;
         }
         ++nb_done;
-        if (nb_done % 10000 == 0)
-            std::cout << nb_done << " of " << batch_size << std::endl;
+        if ((nb_done*100)/batch_size != ((nb_done-1)*100)/batch_size && ((nb_done*100)/batch_size % 5 == 0))
+            std::cout << (nb_done*100)/batch_size << " percent done" << std::endl;
     }
     return good_correction_functions;
 
@@ -523,7 +521,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> makeUniformWith(
 }
 
 void makeUniform(
-    const std::string& directory,
+    const std::string& filename,
     std::map<Indices, std::vector<VecCorrectionFunction>> functions,
     const std::vector<std::vector<BlnFunction>> realization,
     std::size_t nb_input_variables) {
@@ -559,7 +557,7 @@ void makeUniform(
     }
     
     std::cout << functions.size() << std::endl;
-    writeFunctions(directory, "end.out", functions);
+    writeFunctions("output", filename, functions);
     std::cout << "Process stopped at level " << level << '.' << std::endl;
 }
 
@@ -723,7 +721,7 @@ std::tuple<std::bitset<OUTPUT_BITS>,std::vector<std::bitset<INPUT_BITS>>,std::ve
 
 int* readTruthTable(const std::string& filename) {
     int truthTable[INPUT_SIZE];
-    std::ifstream ifs(filename);
+    std::ifstream ifs("input/" + filename);
     if (!ifs.is_open()) {
         std::cout << "failed to open " << filename << '\n';
         return nullptr;
@@ -756,6 +754,29 @@ std::vector<std::bitset<INPUT_SHARES_BITS>> readCandidate(const std::string& fil
     return correctionFunction;
 }
 
+void decimalToBinaryInputConvertor(const std::string& filename) {
+    
+    std::ifstream ifs("decimalInput/" + filename);
+    std::ofstream ofs("input/" + filename);
+    std::string line;
+    int i = 0;
+    std::bitset<INPUT_SIZE> control;
+    while(std::getline(ifs, line) && i<INPUT_SIZE) {
+        int number = std::stoi(line);
+        if (number >= INPUT_SIZE) {
+            std::cout << "bad input given, check original file for errors" << std::endl;
+            return;
+        }
+        std::string binary = std::bitset<INPUT_BITS>(number).to_string();
+        control[number] = 1;
+        ofs << binary << std::endl;
+        i++;
+    }
+    if (control.count()!= INPUT_SIZE) {
+        std::cout << "bad input given, check original file for errors" << std::endl;
+    }
+}
+
 int main(int argc, char *argv[])
 {
     
@@ -772,14 +793,24 @@ int main(int argc, char *argv[])
 //    }
 //    
 //    std::cout << "Reading realization..." << std::endl;
-    int* truthTable = readTruthTable("input/raw_input_4_156.in");
+    if(argc < 2) {
+        std::cerr << "Usage: <mode> <filename>. where mode is one of the following:/n 0 : normal operation/n 1 : control/n 2 : decimal to binary convertor"
+                  << std::endl;
+        return 1;
+    }
+    int mode = std::stoi(argv[1]);
+    if (mode == 2) {
+        decimalToBinaryInputConvertor(argv[2]);
+        return 0;
+    }
+    int* truthTable = readTruthTable(argv[2]);
     if (truthTable==nullptr) {
         return 1;
     }
     int p[INPUT_SIZE];
     auto tuple = ANFToUnsharedInput(getANF(truthTable,p));
     auto sharedTuple = unsharedToSharedInput(std::get<0>(tuple),std::get<1>(tuple),std::get<2>(tuple));
-    if(CONTROL) {
+    if(mode == 1) {
         std::vector<std::bitset<INPUT_SHARES_BITS>> correctionTerm = readCandidate("control/correction.in");
         for(std::size_t i=0;i<INPUT_SHARES_BITS;i++) {
             for(std::size_t j=0;j<INPUT_SHARES_BITS;j++) {
