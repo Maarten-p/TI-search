@@ -156,89 +156,11 @@ std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
     return solutions;
 }
 
-std::vector<std::vector<int>> constructQuadraticCorrectionTermsSpace() {
-    std::vector<std::vector<int>> quadraticSpace;
-    for(std::size_t i = 0; i < INPUT_SHARES; ++i) {
-        std::vector<int> oneShareSpace;
-        for(std::size_t j = 0; j < INPUT_SHARES_BITS; ++j) {
-            for(std::size_t k = j; k < INPUT_SHARES_BITS; ++k) {
-                if (j/INPUT_SHARES == k/INPUT_SHARES || (j%INPUT_SHARES==i) || (k%INPUT_SHARES==i))
-                    continue;
-                oneShareSpace.push_back(j*INPUT_SHARES_BITS+k);
-            }
-        }
-        quadraticSpace.push_back(oneShareSpace);
-    }
-    return quadraticSpace;
-}
-
-BlnFunction addQuadraticTerm(BlnFunction& blnFunction,std::size_t j,std::size_t k) {
-    std::bitset<INPUT_SHARES_SIZE> truthTable = blnFunction.getTruthTable();
-    for(std::size_t i = 0; i < INPUT_SHARES_SIZE; ++i) {
-        InputBitArray input(i);
-        truthTable[i] = truthTable[i] ^ (input[j] & input[k]);
-    }
-    return BlnFunction(truthTable);
-}
-
-void tryQuadraticCorrectionTerms(std::vector<std::vector<BlnFunction>>& realization,std::size_t outputIndex, std::vector<std::vector<int>> quadraticSpace) {
-    std::bitset<INPUT_SHARES> problematicFunctions;
-    problematicFunctions.flip();
-    for(std::size_t i = 0; i < INPUT_SHARES; ++i) {
-        auto spectrum1 = realization[outputIndex][i].walshHadamardTransform(); 
-        for(std::size_t j = 0; j < INPUT_SHARES_SIZE; ++j) {
-            std::bitset<INPUT_SHARES_BITS> bits_j(j);
-            if(!areSharesZero(bits_j, i, outputIndex*3+i) || spectrum1[j] != 0 || !hammingWeightConstraint(bits_j))
-                continue;
-            problematicFunctions[i] = 0;
-            break;
-        }
-    }
-    for(std::size_t i = 0; i < INPUT_SHARES; ++i) {
-        if (!problematicFunctions[i])
-            continue;
-        bool solutionFound = false;
-        
-        for(std::size_t j = 0; j < INPUT_SHARES_BITS; ++j) {
-            for(std::size_t k = j; k < INPUT_SHARES_BITS; ++k) {
-                if (j/INPUT_SHARES == k/INPUT_SHARES || (j%INPUT_SHARES==i) || (k%INPUT_SHARES==i))
-                    continue;
-                realization[outputIndex][i] = addQuadraticTerm(realization[outputIndex][i],j,k);
-                std::cout << realization[outputIndex][i] << std::endl;
-                auto spectrum1 = realization[outputIndex][i].walshHadamardTransform();
-                for(std::size_t l = 0; l < INPUT_SHARES_SIZE; ++l) {
-                    std::bitset<INPUT_SHARES_BITS> bits_l(l);
-                    if(!areSharesZero(bits_l, i, outputIndex*3+i) || spectrum1[l] != 0 || !hammingWeightConstraint(bits_l))
-                        continue;
-                    solutionFound = true;
-                    std::ofstream ofs("output/quadratic.out");
-                    ofs << j << " " << k << std::endl;
-                    std::cout << j << " " << k << std::endl;
-                    break;
-                }
-                if (solutionFound) {
-                    break;
-                }
-                else {
-                    //adding the same term again removes it
-                    addQuadraticTerm(realization[outputIndex][i],j,k);
-                }
-            }
-        if (solutionFound)
-            break;
-        }
-        if (!solutionFound)
-            exit(EXIT_FAILURE);
-    }
-   
-}
 std::map<Indices, std::vector<VecCorrectionFunction>> buildCorrectionTerms(
     std::vector<std::vector<BlnFunction>>& realization)
 {
     std::cout << "Collecting linear correction terms." << std::endl;
     std::map<Indices, std::vector<VecCorrectionFunction>> correctionTerms;
-    bool quadraticSpaceExists = false;
-    std::vector<std::vector<int>> quadraticSpace;
     for(std::size_t i = 0; i < realization.size(); ++i) {
         Indices ind;
         ind.indices.push_back(i);
@@ -247,17 +169,6 @@ std::map<Indices, std::vector<VecCorrectionFunction>> buildCorrectionTerms(
             realization[i][1],
             realization[i][2], i
         );
-        if (correctionTerms[ind].size() == 0) {
-            if (!quadraticSpaceExists)
-                quadraticSpace = constructQuadraticCorrectionTermsSpace();
-            std::cout << "test" << std::endl;
-            tryQuadraticCorrectionTerms(realization,i, quadraticSpace);
-            correctionTerms[ind] = getLinearCorrections(
-                realization[i][0],
-                realization[i][1],
-                realization[i][2], i
-            );
-        }
         std::cout << "Collected " << correctionTerms[ind].size()
                   << " linear correction terms for indices " << i << std::endl;
     }

@@ -81,7 +81,7 @@ template<std::size_t NIn>
 std::ostream& operator<<(std::ostream& os, const BooleanFunction<NIn>& rhs)
 {
     typename BooleanFunction<NIn>::BitArray tt = rhs.getTruthTable();
-    for(std::size_t i = 0; i < 100; ++i)
+    for(std::size_t i = 0; i < tt.size(); ++i)
         os << tt[i] << ' ';
     return os;
 }
