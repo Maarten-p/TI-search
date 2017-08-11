@@ -376,6 +376,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
         if(level==2) {
             for(const auto& correction1 : functions.at(ind_no_first)) {
                 for(const auto& correction2 : functions.at(ind_no_second)) {
+                    //Useful when you want a quick result for debugging purposes
                     //int v1 = rand() % 300; 
                     //if (v1 == 1) {
                     VecCorrectionFunction correction = correction2;
@@ -543,6 +544,18 @@ bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components) {
 
 typedef std::vector<VecCorrectionFunction>::const_iterator FunctionIter;
 
+/**
+ * 
+ * @param directory
+ * @param realization
+ * @param nb_input_variables
+ * @param indices
+ * @param begin
+ * @param end
+ * @param batch_nb
+ * @param batch_size
+ * @return 
+ */
 std::vector<VecCorrectionFunction> makeBatchUniformWith(
     const std::string& directory,
     const std::vector<std::vector<BlnFunction>>& realization,
@@ -575,7 +588,7 @@ std::vector<VecCorrectionFunction> makeBatchUniformWith(
             ++i_corrected;
         }
 
-        if(checkUniformity(corrected_realization, nb_input_variables)) {
+        if(checkUniformity(corrected_realization)) {
             ++nb_found;
             good_correction_functions.push_back(*it);
             //std::cout << "Found " << nb_found << " of " << nb_done << " correction functions."
@@ -659,7 +672,7 @@ bool makeUniform(
     std::tuple<std::bitset<OUTPUT_SHARES_BITS>,std::vector<std::bitset<INPUT_SHARES_BITS>>,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>>& directSharing) {
 
     std::size_t level = 2;
-    if (checkUniformity(realization,nb_input_variables)) {
+    if (checkUniformity(realization)) {
         std::cout << "already uniform" << std::endl;
         return true;
     }
@@ -694,6 +707,9 @@ bool makeUniform(
     return (countCorrectionFunctions(functions)!=0);
 }
 
+/**
+ * Constructs the truth tables for all shares of all outputs
+ */
 std::vector<std::vector<BlnFunction>> createTruthTable(std::bitset<OUTPUT_SHARES_BITS>& constant_bits, std::vector<std::bitset<INPUT_SHARES_BITS>>& linear_bits,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>& quadratic_bits) {
     std::vector<std::vector<BlnFunction>> truthTables;
     std::vector<BlnFunction> tempTable;
@@ -726,6 +742,10 @@ std::vector<std::vector<BlnFunction>> createTruthTable(std::bitset<OUTPUT_SHARES
     return truthTables;
 }
 
+/**
+ * Creates a global variable that contains information on which share of which output functions depends on which share of which input functions
+ * Useful for checking the non-completeness constraint
+ */
 void getDependence(std::vector<std::bitset<INPUT_SHARES_BITS>>& linear_bits,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>& quadratic_bits) {
     std::vector<std::bitset<INPUT_SHARES_BITS>> dependence;
     for (std::size_t i=0;i<INPUT_SHARES_BITS;i++) {
@@ -749,7 +769,10 @@ void getDependence(std::vector<std::bitset<INPUT_SHARES_BITS>>& linear_bits,std:
 }
 
 
-
+/**
+ * Converts an unshared truthTable, f, into ANF
+ * Feel free to bring this function up to date to c++11 using bitsets/std::arrays/vectors
+ */
 int* getANF(const int f[INPUT_SIZE], int p[INPUT_SIZE]){
     int i, j;
     for (i = 0; i < INPUT_SIZE; ++i) p[i] = f[i];
@@ -762,45 +785,10 @@ int* getANF(const int f[INPUT_SIZE], int p[INPUT_SIZE]){
     return p;
 }
 
-std::tuple<std::bitset<OUTPUT_SHARES_BITS>,std::vector<std::bitset<INPUT_SHARES_BITS>>,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>> unsharedToSharedInput(std::bitset<INPUT_BITS> constant_bits_old, std::vector<std::bitset<INPUT_BITS>> linear_bits_old, std::vector<std::vector<std::bitset<INPUT_BITS>>> quadratic_bits_old) {
-    std::bitset<INPUT_SHARES_BITS> constant_bits;
-    std::vector<std::bitset<INPUT_SHARES_BITS>> linear_bits(INPUT_SHARES_BITS,std::bitset<INPUT_SHARES_BITS>());
-    std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>> quadratic_bits(INPUT_SHARES_BITS, std::vector<std::bitset<INPUT_SHARES_BITS>>(INPUT_SHARES_BITS,std::bitset<INPUT_SHARES_BITS>()));
-    for(std::size_t i=0;i<constant_bits.size();i++) {
-        constant_bits[INPUT_SHARES*i] = constant_bits_old[i];
-    }
-    for(std::size_t i=0;i<linear_bits_old.size();i++) {
-        for(std::size_t j=0;j<INPUT_BITS;j++) {
-            for(std::size_t k=1;k<INPUT_SHARES;k++) {
-                linear_bits[INPUT_SHARES*i+(k-1)][INPUT_SHARES*j+k] = linear_bits_old[i][j];
-            }
-            linear_bits[INPUT_SHARES*i+INPUT_SHARES-1][INPUT_SHARES*j] = linear_bits_old[i][j];
-            //give second share to the first sharing function
-            //linear_bits[3*i][3*j+1] = linear_bits_old[i][j];
-            //give third share to the second sharing function
-            //linear_bits[3*i+1][3*j+2] = linear_bits_old[i][j];
-            //give first share to the third sharing function
-            //linear_bits[3*i+2][3*j] = linear_bits_old[i][j];
-        }
-    }
-    for(std::size_t i=0;i<quadratic_bits_old.size();i++) {
-        for(std::size_t j=0;j<INPUT_BITS;j++) {
-            for(std::size_t k=0;k<INPUT_BITS;k++) {
-                quadratic_bits[3*i][3*j+1][3*k+1] = quadratic_bits_old[i][j][k];
-                quadratic_bits[3*i][3*j+2][3*k+1] = quadratic_bits_old[i][j][k];
-                quadratic_bits[3*i][3*j+1][3*k+2] = quadratic_bits_old[i][j][k];
-                quadratic_bits[3*i][3*j+2][3*k+2] = quadratic_bits_old[i][j][k];
-                quadratic_bits[3*i+1][3*j][3*k] = quadratic_bits_old[i][j][k];
-                quadratic_bits[3*i+1][3*j+2][3*k] = quadratic_bits_old[i][j][k];
-                quadratic_bits[3*i+1][3*j][3*k+2] = quadratic_bits_old[i][j][k];
-                quadratic_bits[3*i+2][3*j][3*k+1] = quadratic_bits_old[i][j][k];
-                quadratic_bits[3*i+2][3*j+1][3*k] = quadratic_bits_old[i][j][k];
-            }
-        }
-    }
-    return std::make_tuple(constant_bits,linear_bits,quadratic_bits);
-}
-
+/**
+ * Converts ANF to a form with the constant, linear and quadratic terms in different variables
+ * Each output function has one constant bit, one vector of linear bits and one matrix of quadratic terms
+ */
 std::tuple<std::bitset<OUTPUT_BITS>,std::vector<std::bitset<INPUT_BITS>>,std::vector<std::vector<std::bitset<INPUT_BITS>>>> ANFToUnsharedInput(const int p[INPUT_SIZE]) {
     
     std::vector<std::vector<std::bitset<INPUT_BITS>>> quadratic_bits(INPUT_BITS, std::vector<std::bitset<INPUT_BITS>>(INPUT_BITS,std::bitset<INPUT_BITS>()));
@@ -824,6 +812,54 @@ std::tuple<std::bitset<OUTPUT_BITS>,std::vector<std::bitset<INPUT_BITS>>,std::ve
     return std::make_tuple(constant_bits,linear_bits,quadratic_bits); 
 }
 
+/**
+ * Converts the unshared form to the shared form
+ * Each share of each output function has one constant bit, one vector of linear bits and one matrix of quadratic terms
+ */
+std::tuple<std::bitset<OUTPUT_SHARES_BITS>,std::vector<std::bitset<INPUT_SHARES_BITS>>,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>> unsharedToSharedInput(std::bitset<INPUT_BITS> constant_bits_old, std::vector<std::bitset<INPUT_BITS>> linear_bits_old, std::vector<std::vector<std::bitset<INPUT_BITS>>> quadratic_bits_old) {
+    std::bitset<INPUT_SHARES_BITS> constant_bits;
+    std::vector<std::bitset<INPUT_SHARES_BITS>> linear_bits(INPUT_SHARES_BITS,std::bitset<INPUT_SHARES_BITS>());
+    std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>> quadratic_bits(INPUT_SHARES_BITS, std::vector<std::bitset<INPUT_SHARES_BITS>>(INPUT_SHARES_BITS,std::bitset<INPUT_SHARES_BITS>()));
+    for(std::size_t i=0;i<constant_bits.size();i++) {
+        constant_bits[INPUT_SHARES*i] = constant_bits_old[i];
+    }
+    for(std::size_t i=0;i<linear_bits_old.size();i++) {
+        for(std::size_t j=0;j<INPUT_BITS;j++) {
+            for(std::size_t k=1;k<INPUT_SHARES;k++) {
+                linear_bits[INPUT_SHARES*i+(k-1)][INPUT_SHARES*j+k] = linear_bits_old[i][j];
+            }
+            linear_bits[INPUT_SHARES*i+INPUT_SHARES-1][INPUT_SHARES*j] = linear_bits_old[i][j];
+            //give second share to the first sharing function
+            //linear_bits[3*i][3*j+1] = linear_bits_old[i][j];
+            //give third share to the second sharing function
+            //linear_bits[3*i+1][3*j+2] = linear_bits_old[i][j];
+            //give first share to the third sharing function
+            //linear_bits[3*i+2][3*j] = linear_bits_old[i][j];
+        }
+    }
+    //hardcoded with 3 shares for now, should be changed to a general form
+    for(std::size_t i=0;i<quadratic_bits_old.size();i++) {
+        for(std::size_t j=0;j<INPUT_BITS;j++) {
+            for(std::size_t k=0;k<INPUT_BITS;k++) {
+                quadratic_bits[3*i][3*j+1][3*k+1] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i][3*j+2][3*k+1] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i][3*j+1][3*k+2] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i][3*j+2][3*k+2] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i+1][3*j][3*k] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i+1][3*j+2][3*k] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i+1][3*j][3*k+2] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i+2][3*j][3*k+1] = quadratic_bits_old[i][j][k];
+                quadratic_bits[3*i+2][3*j+1][3*k] = quadratic_bits_old[i][j][k];
+            }
+        }
+    }
+    return std::make_tuple(constant_bits,linear_bits,quadratic_bits);
+}
+
+
+/**
+ * Reads an unshared binary truth table from a file
+ */
 int* readTruthTable(const std::string& filename) {
     int truthTable[INPUT_SIZE];
     std::ifstream ifs("input/" + filename);
@@ -843,6 +879,10 @@ int* readTruthTable(const std::string& filename) {
     return truthTable;
 }
 
+/**
+ * Reads a CorrectionFunction from a file
+ * OUTDATED
+ */
 std::vector<std::bitset<INPUT_SHARES_BITS>> readCandidate(const std::string& filename) {
     
     std::ifstream ifs(filename);
@@ -859,6 +899,10 @@ std::vector<std::bitset<INPUT_SHARES_BITS>> readCandidate(const std::string& fil
     return correctionFunction;
 }
 
+/**
+ * Converts a decimal unshared truth table to a binary unshared truth table
+ * also checks if the given truth table is a valid s-box
+ */
 void decimalToBinaryInputConvertor(const std::string& filename) {
     
     std::ifstream ifs("decimalInput/" + filename);
@@ -902,7 +946,7 @@ int main(int argc, char *argv[]) {
     auto tuple = ANFToUnsharedInput(getANF(truthTable,p));
     auto sharedTuple = unsharedToSharedInput(std::get<0>(tuple),std::get<1>(tuple),std::get<2>(tuple));
     if(mode == 1) {
-        std::vector<std::bitset<INPUT_SHARES_BITS>> correctionTerm = readCandidate("control/correction.in");
+        std::vector<std::bitset<INPUT_SHARES_BITS>> correctionTerm = readCandidate("control/" + argv[2]);
         for(std::size_t i=0;i<INPUT_SHARES_BITS;i++) {
             for(std::size_t j=0;j<INPUT_SHARES_BITS;j++) {
             correctionTerm[i][j] = std::get<1>(sharedTuple)[i][j] + correctionTerm[i][j];
@@ -932,7 +976,7 @@ int main(int argc, char *argv[]) {
             std::cout << first_bit << second_bit << third_bit << std::endl;
         }
         createGlobalSharingTable();
-        std::cout << checkUniformity(result,INPUT_BITS) << std::endl;
+        std::cout << checkUniformity(result) << std::endl;
     }
     else {
         auto result = createTruthTable(std::get<0>(sharedTuple),std::get<1>(sharedTuple),std::get<2>(sharedTuple));
