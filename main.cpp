@@ -885,7 +885,7 @@ int* readTruthTable(const std::string& filename) {
  */
 std::vector<std::bitset<INPUT_SHARES_BITS>> readCandidate(const std::string& filename) {
     
-    std::ifstream ifs(filename);
+    std::ifstream ifs("control/" + filename);
     std::string line;
     std::vector<std::bitset<INPUT_SHARES_BITS>> correctionFunction;
     int i = 0;
@@ -946,7 +946,7 @@ int main(int argc, char *argv[]) {
     auto tuple = ANFToUnsharedInput(getANF(truthTable,p));
     auto sharedTuple = unsharedToSharedInput(std::get<0>(tuple),std::get<1>(tuple),std::get<2>(tuple));
     if(mode == 1) {
-        std::vector<std::bitset<INPUT_SHARES_BITS>> correctionTerm = readCandidate("control/" + argv[2]);
+        std::vector<std::bitset<INPUT_SHARES_BITS>> correctionTerm = readCandidate(argv[2]);
         for(std::size_t i=0;i<INPUT_SHARES_BITS;i++) {
             for(std::size_t j=0;j<INPUT_SHARES_BITS;j++) {
             correctionTerm[i][j] = std::get<1>(sharedTuple)[i][j] + correctionTerm[i][j];
