@@ -210,9 +210,8 @@ std::vector<VecCorrectionFunction> getLinearCorrections(const BlnFunction& f1,
 }
 
 /**
- * 
- * @param realization
- * @return 
+ * Finds the collection of possible correction functions for each output function
+ * @param realization The truthTable for all shares of all output functions
  */
 std::map<Indices, std::vector<VecCorrectionFunction>> buildCorrectionTerms(
     std::vector<std::vector<BlnFunction>>& realization)
@@ -234,6 +233,12 @@ std::map<Indices, std::vector<VecCorrectionFunction>> buildCorrectionTerms(
     return correctionTerms;
 }
 
+/**
+ * Get all possible combinations of indices for a certain level
+ * For example level 2 with 4 components -> 0011,0101,0110,1001,1010,1100
+ * @param nb_components The number of unshared output functions
+ * @param level The number of unshared output functions for which we want to combine the correction terms
+ */
 std::vector<Indices> getCombinations(int nb_components, int level) {
     std::vector<Indices> result;
     // Generate level-combinations of the components
@@ -252,6 +257,11 @@ std::vector<Indices> getCombinations(int nb_components, int level) {
     return result;
 }
 
+/**
+ * Checks if there exists indices of the level below the current one
+ * For example if ind equals 0111 check if there exist correction terms for 0110,0101,0011
+ * If one of these terms has no correction terms there is no point in looking for correction terms for 0111
+ */
 bool canAddIndices(const std::map<Indices, std::vector<VecCorrectionFunction>>& functions,
     const Indices& ind) {
     // Is there at least one correction function for each level - 1 index
@@ -264,6 +274,7 @@ bool canAddIndices(const std::map<Indices, std::vector<VecCorrectionFunction>>& 
     return true;
 }
 
+//A comparer for veccorrectionfunctions so that they can be used in a map
 struct Comparer {
     bool operator() (const VecCorrectionFunction& b1, const VecCorrectionFunction& b2) const {
         std::size_t size1 = b1.size();
@@ -291,6 +302,11 @@ struct Comparer {
         return false;
     }
 };
+
+/**
+ * Transforms VecCorrectionFunctions of the form (a,b,c) to a map (b,c) -> a
+ * Useful for comparing higher levels of indices
+ */
 std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> getMap(std::vector<VecCorrectionFunction> functions) {
     std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> results;
     for (size_t i=0;i<functions.size();i++) {
@@ -306,6 +322,11 @@ std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer> getMap(
     return results;
 }
 
+/**
+ * In order to combine (a,c,d) and (b,c,d) two maps {(c,d)} -> {a} and {(c,d)} -> {b} are used
+ * For every key (c,d) that exists in both maps, the list of values {a} and {b} are combined with a cross product
+ * This allows for a fast, efficient combination of lower levels of indices into higher ones
+ */
 std::vector<VecCorrectionFunction> combineFunctions(std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer>& possibilities1, std::map<VecCorrectionFunction,std::vector<CorrectionFunction>,Comparer>& possibilities2) {
     std::vector<VecCorrectionFunction> results;
     for(const auto& pair : possibilities1) {
@@ -324,6 +345,13 @@ std::vector<VecCorrectionFunction> combineFunctions(std::map<VecCorrectionFuncti
     return results;
 }
 
+/**
+ * Finds all possible combinations of correction terms for level amount of unshared outputs
+ * The correction terms are not yet checked for uniformity, this function only gathers a list of possible candidates
+ * @param functions The collection of possible veccorrectionfunctions for each group of indices
+ * @param nb_components The number of unshared output functions
+ * @param level The number of unshared output functions for which we want to combine the correction terms
+ */
 std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions(
     const std::map<Indices, std::vector<VecCorrectionFunction>>& functions,
     int nb_components, int level) {
@@ -376,14 +404,23 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
 
 char nth_letter(int n)
 {
+    if (n==0) {
+        std::cout << "The function nth_letter takes inputs from 1-26, 0 is not a valid input" << std::endl;
+        return 'A';
+    }
     return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[n-1];
 }
 
-void writeFunctions(const std::string& directory, const std::string& file, 
+/**
+ * Writes the direct sharing and all correction terms to a file
+ * @param directSharing first element contains the constant terms, second element contains the linear terms,
+ *        third element contains the quadratic terms 
+ */
+void writeFunctions(const std::string& directory, const std::string& filename, 
     const std::map<Indices, std::vector<VecCorrectionFunction>>& functions,
     std::tuple<std::bitset<OUTPUT_SHARES_BITS>,std::vector<std::bitset<INPUT_SHARES_BITS>>,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>>& directSharing) {
     
-    std::ofstream ofs(directory + '/' + file);
+    std::ofstream ofs(directory + '/' + filename);
     ofs << "Direct sharing for the function f(...,X,Y,Z) with outputs A,B,C,... :\n\n\n";
     for(std::size_t i=0;i<OUTPUT_BITS;i++) {
         ofs << nth_letter(i+1) << ": ";
@@ -421,7 +458,7 @@ void writeFunctions(const std::string& directory, const std::string& file,
     ofs << std::endl;
 }
 
-
+//Returns the total amount of VecCorrectionFunctions in the entire map
 std::size_t countCorrectionFunctions(
     const std::map<Indices, std::vector<VecCorrectionFunction>>& functions)
 {
@@ -431,7 +468,7 @@ std::size_t countCorrectionFunctions(
     return total_count;
 }
 
-
+//Checks if the given sharedInput is a correct sharing of the given input
 bool isCorrectSharing(const InputBitArray& input, const SharedInputBitArray& sharedInput) {
     for (std::size_t i = 0; i<INPUT_BITS;i++) {
         bool temp = 0;
@@ -446,6 +483,7 @@ bool isCorrectSharing(const InputBitArray& input, const SharedInputBitArray& sha
     
 }
 
+//Creates a global variable (sorry) that contains all valid sharings for each possible input
 void createGlobalSharingTable() {
     for(std::size_t i = 0; i < INPUT_SIZE; ++i) {
         InputBitArray input(i); 
@@ -460,18 +498,24 @@ void createGlobalSharingTable() {
     }       
 }
 
-
-bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
-    std::size_t nb_input_variables) {
+/**
+ * Checks whether the given boolean functions are uniform (have the same count of each output when checked over all possible inputs)
+ * This is workhorse of the program, about 99% of the time is spend here
+ * If you can optimize this function, do so
+ * @param components The truthTable for all shares of the output functions which are combined
+ * @return true of the given boolean functions are uniform together, false otherwise
+ */
+bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components) {
     const std::size_t expected_count = std::pow(
-        2, 2 * nb_input_variables - 2 * components.size()
+        2, 2 * INPUT_BITS - 2 * components.size()
 );
     //int test2;
     std::vector<std::vector<std::size_t>> counts(INPUT_SIZE, std::vector<std::size_t>(OUTPUT_SHARES_SIZE,0));
     for(std::size_t i = 0; i < INPUT_SIZE; ++i) {
         InputBitArray input(i); 
+        std::bitset<OUTPUT_SHARES_BITS> outputs;
         for(std::size_t validShare : globalValidSharesTable[i]) {
-            std::bitset<OUTPUT_SHARES_BITS> outputs;
+            outputs.reset();
             for(std::size_t k = 0; k < components.size(); ++k) {
                 for (std::size_t l = 0; l < OUTPUT_SHARES; ++l) {
                     outputs[k*OUTPUT_SHARES+l] = components[k][l][validShare];
@@ -484,6 +528,7 @@ bool checkUniformity(const std::vector<std::vector<BlnFunction>>& components,
             }
         }
     }
+//Sanity check, only use for debugging since the performance hit is significant
 //    for(std::size_t i = 0; i < INPUT_SIZE; ++i) {
 //        for (std::size_t j = 0; j < OUTPUT_SHARES_SIZE; ++j) {
 //            if (counts[i][j] != 0 && counts[i][j] != expected_count) {
@@ -648,34 +693,6 @@ bool makeUniform(
     std::cout << "Process stopped at level " << level << '.' << std::endl;
     return (countCorrectionFunctions(functions)!=0);
 }
-
-//std::vector<std::vector<BlnFunction>> readRealization(const std::string& filename)
-//{
-//    std::vector<std::vector<BlnFunction>> result;
-//
-//    std::ifstream ifs(filename);
-//
-//    std::string line;
-//    std::vector<BlnFunction> shares;
-//    std::size_t nb_so_far = 0;
-//    while(std::getline(ifs, line)) {
-//        if(line.size() != INPUT_SIZE)
-//            std::cout << "Warning: incorrect input size given, got " << line.size()
-//                      << " expecting " << INPUT_SIZE << '.' << std::endl;
-//        shares.push_back(BlnFunction(BlnFunction::BitArray(line)));
-//        ++nb_so_far;
-//        if(nb_so_far == OUTPUT_SHARES) {
-//            result.push_back(shares);
-//            shares.clear();
-//            nb_so_far = 0;
-//        }
-//    }
-//    if(nb_so_far)
-//        std::cout << "Warning: missing shares for last component." << std::endl;
-//    std::cout << "Read realization with " << result.size() << " components."
-//              << std::endl;
-//    return result;
-//}
 
 std::vector<std::vector<BlnFunction>> createTruthTable(std::bitset<OUTPUT_SHARES_BITS>& constant_bits, std::vector<std::bitset<INPUT_SHARES_BITS>>& linear_bits,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>& quadratic_bits) {
     std::vector<std::vector<BlnFunction>> truthTables;
@@ -867,19 +884,6 @@ void decimalToBinaryInputConvertor(const std::string& filename) {
 
 int main(int argc, char *argv[]) {
     
-//    if(argc < 4) {
-//        std::cerr << "Usage: <number of inputs> <output directory> <filename>."
-//                  << std::endl;
-//        return 1;
-//    }
-//    std::size_t nb_inputs = std::stoi(argv[1]);
-//    if(nb_inputs != INPUT_BITS) {
-//        std::cerr << "Expected exactly " << INPUT_BITS << " input bits."
-//                  << std::endl;
-//        return 1;
-//    }
-//    
-//    std::cout << "Reading realization..." << std::endl;
     if(argc < 2) {
         std::cerr << "Usage: <mode> <filename>. where mode is one of the following:/n 0 : normal operation/n 1 : control/n 2 : decimal to binary convertor"
                   << std::endl;

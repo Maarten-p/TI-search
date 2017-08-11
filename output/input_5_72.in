@@ -1,0 +1,16 @@
+Direct sharing for the function f(...,X,Y,Z) with outputs A,B,C,... :
+
+
+A: + V3 + Y3 + Z3 + V3*X3 + V3*X1 + V3*Z3 + V3*Z1 + V1*X3 + V1*X1 + V1*Z3 + V1*Z1 + W3*Y3 + W3*Y1 + W3*Z3 + W3*Z1 + W1*Y3 + W1*Y1 + W1*Z3 + W1*Z1 + Y3*Z3 + Y3*Z1 + Y1*Z3 + Y1*Z1 
+B: + W3 + V3*X3 + V3*X1 + V3*Z3 + V3*Z1 + V1*X3 + V1*X1 + V1*Z3 + V1*Z1 + W3*X3 + W3*X1 + W3*Y3 + W3*Y1 + W3*Z3 + W3*Z1 + W1*X3 + W1*X1 + W1*Y3 + W1*Y1 + W1*Z3 + W1*Z1 + X3*Y3 + X3*Y1 + X3*Z3 + X3*Z1 + X1*Y3 + X1*Y1 + X1*Z3 + X1*Z1 + Y3*Z3 + Y3*Z1 + Y1*Z3 + Y1*Z1 
+C: + X3 + Y3 + V3*Z3 + V3*Z1 + V1*Z3 + V1*Z1 + W3*X3 + W3*X1 + W3*Y3 + W3*Y1 + W1*X3 + W1*X1 + W1*Y3 + W1*Y1 + X3*Y3 + X3*Y1 + X3*Z3 + X3*Z1 + X1*Y3 + X1*Y1 + X1*Z3 + X1*Z1 + Y3*Z3 + Y3*Z1 + Y1*Z3 + Y1*Z1 
+D: + Z3 + V3*Y3 + V3*Y1 + V1*Y3 + V1*Y1 + W3*X3 + W3*X1 + W1*X3 + W1*X1 
+E: + W3*Y3 + W3*Y1 + W3*Z3 + W3*Z1 + W1*Y3 + W1*Y1 + W1*Z3 + W1*Z1 + Y3*Z3 + Y3*Z1 + Y1*Z3 + Y1*Z1 
+
+
+Correction terms:
+
+
+------------
+
+

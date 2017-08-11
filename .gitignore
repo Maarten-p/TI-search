@@ -31,6 +31,5 @@ analysis*
 # old input #
 gf4.in
 
-# output #
-*.out
-output
+# logs #
+*.log
