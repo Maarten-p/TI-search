@@ -348,7 +348,7 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
         if(level==2) {
             for(const auto& correction1 : functions.at(ind_no_first)) {
                 for(const auto& correction2 : functions.at(ind_no_second)) {
-                    //int v1 = rand() % 30; 
+                    //int v1 = rand() % 300; 
                     //if (v1 == 1) {
                     VecCorrectionFunction correction = correction2;
                     correction.insert(
@@ -374,20 +374,48 @@ std::map<Indices, std::vector<VecCorrectionFunction>> combineCorrectionFunctions
     return result;
 }
 
-void writeFunctions(const std::string& directory, const std::string& file, 
-    const std::map<Indices, std::vector<VecCorrectionFunction>>& functions) {
+char nth_letter(int n)
+{
+    return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[n-1];
+}
 
+void writeFunctions(const std::string& directory, const std::string& file, 
+    const std::map<Indices, std::vector<VecCorrectionFunction>>& functions,
+    std::tuple<std::bitset<OUTPUT_SHARES_BITS>,std::vector<std::bitset<INPUT_SHARES_BITS>>,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>>& directSharing) {
+    
     std::ofstream ofs(directory + '/' + file);
-    for(auto& pair : functions) {
-        ofs << 1 << '\n';
-        for(const VecCorrectionFunction& vf : pair.second) {
-            for(const CorrectionFunction& f : vf) {
-                for(const std::bitset<INPUT_SHARES_BITS>& share : f) {
-                    ofs << '\t' << share << '\n';
-                }
-                ofs << "\n\n";
+    ofs << "Direct sharing for the function f(...,X,Y,Z) with outputs A,B,C,... :\n\n\n";
+    for(std::size_t i=0;i<OUTPUT_BITS;i++) {
+        ofs << nth_letter(i+1) << ": ";
+        if (std::get<0>(directSharing)[INPUT_SHARES*i])
+            ofs << "+1 ";
+        for(std::size_t j=0;j<OUTPUT_SHARES_BITS;j++) {
+            if (std::get<1>(directSharing)[INPUT_SHARES*i][j])
+                ofs << "+ " << nth_letter((26-INPUT_BITS+1) + j/3) << ((j+1)%INPUT_SHARES)+1 << " ";
+        }
+        for(std::size_t j=0;j<OUTPUT_SHARES_BITS;j++) {
+            for(std::size_t k=0;k<OUTPUT_SHARES_BITS;k++) {
+                if (std::get<2>(directSharing)[3*i][j][k])
+                    ofs << "+ " << nth_letter((26-INPUT_BITS+1) + j/3) << ((j+1)%INPUT_SHARES)+1 << "*" << nth_letter((26-INPUT_BITS+1) + k/3) <<((k+1)%INPUT_SHARES)+1 << " ";
             }
-            ofs << "\n------------\n";
+        }
+        ofs << "\n";
+    }
+    ofs << "\n\nCorrection terms:\n\n";
+    ofs << "\n------------\n\n";
+    for(auto& pair : functions) {
+        for(const VecCorrectionFunction& vf : pair.second) {
+            for(std::size_t k=0;k<vf.size();k++) {
+                for(std::size_t i=0;i<vf[k].size();i++) {
+                    ofs << nth_letter(k+1) << (i+1) << ": ";
+                    for(std::size_t j=0;j<vf[k][i].size();j++) {
+                        if(vf[k][i][j]) 
+                            ofs << "+ " << nth_letter((26-INPUT_BITS+1) + j/3) << ((j+1)%INPUT_SHARES)+1 << " ";
+                    }
+                ofs << "\n";
+                }
+            }
+            ofs << "\n------------\n\n";
         }
     }
     ofs << std::endl;
@@ -582,7 +610,8 @@ bool makeUniform(
     const std::string& filename,
     std::map<Indices, std::vector<VecCorrectionFunction>> functions,
     const std::vector<std::vector<BlnFunction>> realization,
-    std::size_t nb_input_variables) {
+    std::size_t nb_input_variables, 
+    std::tuple<std::bitset<OUTPUT_SHARES_BITS>,std::vector<std::bitset<INPUT_SHARES_BITS>>,std::vector<std::vector<std::bitset<INPUT_SHARES_BITS>>>>& directSharing) {
 
     std::size_t level = 2;
     if (checkUniformity(realization,nb_input_variables)) {
@@ -615,7 +644,7 @@ bool makeUniform(
     }
     
     std::cout << functions.size() << std::endl;
-    writeFunctions("output", filename, functions);
+    writeFunctions("output", filename, functions, directSharing);
     std::cout << "Process stopped at level " << level << '.' << std::endl;
     return (functions.size()!=0);
 }
@@ -908,13 +937,13 @@ int main(int argc, char *argv[]) {
         createGlobalSharingTable();
         bool solutionFound = false;
         while(!solutionFound) {
-            makeUniform(
-                "output", buildCorrectionTerms(result),
-                result, nb_inputs
+            solutionFound = makeUniform(
+                argv[2], buildCorrectionTerms(result),
+                result, nb_inputs, sharedTuple
             ); 
-            MAX_HAMMING_WEIGHT_TOTAL++;
-            if (MAX_HAMMING_WEIGHT_TOTAL> 3*MAX_HAMMING_WEIGHT)
-                MAX_HAMMING_WEIGHT++;
+            MAX_HAMMING_WEIGHT_TOTAL *= 1.5;
+            MAX_HAMMING_WEIGHT = MAX_HAMMING_WEIGHT_TOTAL/2.5;
+            std::cout << MAX_HAMMING_WEIGHT << " " << MAX_HAMMING_WEIGHT_TOTAL << std::endl;
         }
     }
     return 0;
