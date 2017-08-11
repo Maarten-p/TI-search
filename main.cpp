@@ -643,10 +643,10 @@ bool makeUniform(
         level++;
     }
     
-    std::cout << functions.size() << std::endl;
+    std::cout << countCorrectionFunctions(functions) << std::endl;
     writeFunctions("output", filename, functions, directSharing);
     std::cout << "Process stopped at level " << level << '.' << std::endl;
-    return (functions.size()!=0);
+    return (countCorrectionFunctions(functions)!=0);
 }
 
 //std::vector<std::vector<BlnFunction>> readRealization(const std::string& filename)
